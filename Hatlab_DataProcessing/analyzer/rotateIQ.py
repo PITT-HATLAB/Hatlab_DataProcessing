@@ -3,13 +3,13 @@ from typing import Tuple, Any, Optional, Union, Dict, List, Literal
 import numpy as np
 from matplotlib import pyplot as plt
 import json
+from scipy.optimize import minimize_scalar
 
 from Hatlab_DataProcessing.base import Analysis, AnalysisResult
 
 class RotateResult(AnalysisResult):
-    def plot(self,x_data=None, figName=None):
-        if x_data is None:
-            x_data = np.arange(len(self.params['i_data'].value))
+    def plot(self,figName=None):
+        x_data = self.params['x_data'].value
         plt.figure(figName)
         plt.plot(x_data, self.params['i_data'].value)
         plt.plot(x_data, self.params['q_data'].value)
@@ -20,24 +20,29 @@ class RotateData(Analysis):
     rotate the iq data in rad units, return result class that contains new IQ data and rotation angle.
     """
     @staticmethod
-    def analyze(i_data, q_data, angle:Union[float,Literal["find"]]="find"):
-        i_data = np.array(i_data)
-        q_data = np.array(q_data)
-        deriv = []
+    def analyze(x_data, iq_data, angle:Union[float,Literal["find"]]="find", resolution=10001):
+        x_data = np.array(x_data)
+        iq_data = np.array(iq_data)
+        i_data, q_data = iq_data.real, iq_data.imag
         if angle == "find":
-            for i in range(2001):
-                angle = 0.001 * i
-                i_temp, q_temp = rotate_complex(i_data, q_data, angle)
-                line_fit = np.zeros(len(q_temp)) + q_temp.mean()
-                deriv_temp = ((q_temp - line_fit) ** 2).sum()
-                deriv.append(deriv_temp)
-                final = 0.001 * np.argwhere(np.array(deriv) == np.min(np.array(deriv)))
-                rotation_angle = final.ravel()[0]
-        elif type(angle) in [float, np.float]:
+            def std_q(rot_agl_):
+                i_temp, q_temp = rotate_complex(i_data, q_data, rot_agl_)
+                return np.std(q_temp)
+            res = minimize_scalar(std_q, bounds=[0, 2 * np.pi])
+            rotation_angle = res.x
+
+            # -------- old searching method -----------------------------
+            # std_ = []
+            # try_angle = np.linspace(0, 2 * np.pi, resolution)
+            # for agl in try_angle:
+            #     i_temp, q_temp = rotate_complex(i_data, q_data, agl)
+            #     std_.append(np.std(q_temp))
+            # rotation_angle = try_angle[np.argmin(std_)]
+
+        elif type(angle) in [float, np.float, np.float64]:
             rotation_angle = angle
         i_new, q_new = rotate_complex(i_data, q_data, rotation_angle)
-        print(rotation_angle)
-        return RotateResult(dict(i_data=i_new,q_data=q_new, rot_angle=rotation_angle))
+        return RotateResult(dict(x_data=x_data, i_data=i_new,q_data=q_new, rot_angle=rotation_angle))
 
 
 def rotate_complex(real_part, imag_part, angle):
@@ -55,9 +60,9 @@ if __name__=="__main__":
         dataDict = json.load(infile)
 
     x_data = dataDict["x_data"]
-    i_data = dataDict["i_data"]
-    q_data = dataDict["q_data"]
+    i_data = np.array(dataDict["i_data"])
+    q_data = np.array(dataDict["q_data"])
 
-    rotIQ = RotateData(i_data, q_data)
+    rotIQ = RotateData(x_data, i_data+1j*q_data)
     iq_new = rotIQ.run()
-    iq_new.plot(x_data)
+    iq_new.plot()

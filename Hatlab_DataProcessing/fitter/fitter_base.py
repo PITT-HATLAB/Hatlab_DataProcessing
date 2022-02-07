@@ -17,7 +17,10 @@ class Fit(Analysis):
 
         _params = lmfit.Parameters()
         for pn, pv in self.guess(coordinates, data).items():
-            _params.add(pn, value=pv)
+            if type(pv) == lmfit.Parameter:
+                _params.add(pv)
+            else:
+                _params.add(pn, value=pv)
         for pn, pv in params.items():
             _params[pn] = pv
 

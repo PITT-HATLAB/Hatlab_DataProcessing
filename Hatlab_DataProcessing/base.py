@@ -33,6 +33,8 @@ class AnalysisResult(object):
         for k, v in parameters.items():
             if isinstance(v, dict):
                 self.params.add(k, **v)
+            elif isinstance(v, Parameter):
+                self.params.add(k, value=v.value)
             else:
                 self.params.add(k, value=v)
 
@@ -71,7 +73,7 @@ class Analysis(object):
         raise NotImplementedError
 
     def run(self, *args: Any, **kwargs: Any) -> AnalysisResult:
-        return self.analyze(self.coordinates, self.data, **kwargs)
+        return self.analyze(self.coordinates, self.data, *args, **kwargs)
 
 
 # def analyze(analysis_class: Analysis, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
