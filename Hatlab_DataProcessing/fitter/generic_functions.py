@@ -3,7 +3,7 @@ from typing import Tuple, Any, Optional, Union, Dict, List
 import numpy as np
 import lmfit
 
-from fitter_base import Fit, FitResult
+from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
 
 
 class Cosine(Fit):

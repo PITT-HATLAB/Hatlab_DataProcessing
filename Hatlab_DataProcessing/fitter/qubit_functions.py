@@ -3,8 +3,8 @@ from typing import Tuple, Any, Optional, Union, Dict, List
 import numpy as np
 import lmfit
 from matplotlib import pyplot as plt
-from fitter_base import Fit, FitResult
-from generic_functions import Cosine, ExponentialDecay, ExponentialDecayWithCosine
+from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
+from Hatlab_DataProcessing.fitter.generic_functions import Cosine, ExponentialDecay, ExponentialDecayWithCosine
 from Hatlab_DataProcessing.base import Analysis, AnalysisResult
 from Hatlab_DataProcessing.helpers.unit_converter import t2f
 

@@ -1,4 +1,4 @@
-from typing import Tuple, Any, Optional, Union, Dict, List, Literal
+from typing import Tuple, Any, Optional, Union, Dict, List
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -20,7 +20,7 @@ class RotateData(Analysis):
     rotate the iq data in rad units, return result class that contains new IQ data and rotation angle.
     """
     @staticmethod
-    def analyze(x_data, iq_data, angle:Union[float,Literal["find"]]="find", resolution=10001):
+    def analyze(x_data, iq_data, angle:Union[float,str]="find", resolution=10001):
         x_data = np.array(x_data)
         iq_data = np.array(iq_data)
         i_data, q_data = iq_data.real, iq_data.imag
