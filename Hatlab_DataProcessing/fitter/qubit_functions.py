@@ -19,8 +19,8 @@ class QubitBasicResult(AnalysisResult):
         result_str = self.params["result_str"].value
         plt.figure(figName)
         plt.title(result_str)
-        plt.plot(x_data, self.lmfit_result.data, "o")
-        plt.plot(x_data, self.lmfit_result.best_fit)
+        plt.plot(x_data, self.lmfit_result.data, ".")
+        plt.plot(x_data, self.lmfit_result.best_fit, linewidth=2)
 
 class PiPulseTuneUp(Fit):
     @staticmethod
@@ -30,10 +30,19 @@ class PiPulseTuneUp(Fit):
 
     @staticmethod
     def guess(coordinates, data):
-        return Cosine.guess(coordinates, data)
+        guess_ = Cosine.guess(coordinates, data)
+        data0 = data[np.argmin(np.abs(coordinates))]
+        data_amp = guess_["A"]
+        if data0 < np.mean(data): # flip sign of amplitude if zero point data is a deep
+            guess_["A"] = lmfit.Parameter("A", value=-data_amp, max=0)
+        else:
+            guess_["A"] = lmfit.Parameter("A", value=data_amp, min=0)
+
+        guess_["phi"] = lmfit.Parameter("phi", value=0, min=-np.pi/2, max=np.pi/2)
+        return guess_
 
     def analyze(self, coordinates, data, dry=False, params={}, **fit_kwargs) -> QubitBasicResult:
-        cosFitResult = super().analyze(coordinates, data, dry=False, params={}, **fit_kwargs)
+        cosFitResult = super().analyze(coordinates, data, dry=False, params=params, **fit_kwargs)
 
         fit_phi = cosFitResult.params["phi"].value
         fit_f = cosFitResult.params.valuesdict()['f']
@@ -60,7 +69,7 @@ class T1Decay(Fit):
         return ExponentialDecay.guess(coordinates, data)
 
     def analyze(self, coordinates, data, dry=False, params={}, time_unit="us", **fit_kwargs):
-        fitResult = super().analyze(coordinates, data, dry=False, params={}, **fit_kwargs)
+        fitResult = super().analyze(coordinates, data, dry=False, params=params, **fit_kwargs)
 
         fit_tau = fitResult.params["tau"].value
         result_str = f'tau is {str(fit_tau)[:5]} {time_unit}'
@@ -80,7 +89,7 @@ class T2Ramsey(Fit):
         return ExponentialDecayWithCosine.guess(coordinates, data)
 
     def analyze(self, coordinates, data, dry=False, params={}, time_unit="us", **fit_kwargs):
-        fitResult = super().analyze(coordinates, data, dry=False, params={}, **fit_kwargs)
+        fitResult = super().analyze(coordinates, data, dry=False, params=params, **fit_kwargs)
 
         fit_tau = fitResult.params["tau"].value
         fit_f = fitResult.params["f"].value
@@ -97,6 +106,7 @@ if __name__ == "__main__":
     piPulseFit = PiPulseTuneUp(x_data, y_data)
     # cosFitResult = cosFit.run(params={"A":lmfit.Parameter("A", 1, vary=False)}) # example of adjusting fitting parameter
     fitResult = piPulseFit.run()
+
     fitResult.plot()
 
 

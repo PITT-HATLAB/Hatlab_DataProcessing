@@ -10,11 +10,11 @@ from Hatlab_DataProcessing.analyzer.rotateIQ import RotateData
 from Hatlab_DataProcessing.fitter.generic_functions import Cosine, ExponentialDecay
 from Hatlab_DataProcessing.fitter import qubit_functions as qf
 
- 
+
 def _hline(ground, excited):
-    plt.axhline(y=excited, color='r', linestyle='--', label = 'Excited')
-    plt.axhline(y=ground, color='b', linestyle='--', label = 'Ground')
-    plt.axhline(y=(excited + ground) / 2.0, color='y', linestyle='--')
+    plt.axhline(y=excited, color='r', linestyle='--', label = 'Excited', linewidth=1)
+    plt.axhline(y=ground, color='b', linestyle='--', label = 'Ground', linewidth=1)
+    plt.axhline(y=(excited + ground) / 2.0, color='y', linestyle='--', linewidth=1)
     plt.legend()
 
 class QubitBasicResult_rot(AnalysisResult):
@@ -32,9 +32,9 @@ class QubitBasicResult_rot(AnalysisResult):
         result_str = self.params["result_str"].value
         plt.figure(figName)
         plt.title(result_str)
-        plt.plot(x_data, i_new, "o")
-        plt.plot(x_data, q_new, "o")
-        plt.plot(x_data, self.lmfit_result.best_fit)
+        plt.plot(x_data, q_new, ".")
+        plt.plot(x_data, i_new, ".")        
+        plt.plot(x_data, self.lmfit_result.best_fit, linewidth=3)
         if self.rot_result != {}:
             _hline(g_val, e_val)
 
