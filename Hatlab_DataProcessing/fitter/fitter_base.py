@@ -27,7 +27,7 @@ class Fit(Analysis):
         if dry:
             lmfit_result = lmfit.model.ModelResult(model, params=_params,
                                                    data=data,
-                                                   coordinates=coordinates)
+                                                   fcn_kws=dict(coordinates=coordinates))
         else:
             lmfit_result = model.fit(data, params=_params,
                                      coordinates=coordinates, **fit_kwargs)
