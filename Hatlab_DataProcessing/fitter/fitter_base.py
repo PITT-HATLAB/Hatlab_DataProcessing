@@ -12,7 +12,7 @@ class Fit(Analysis):
     def model(*arg, **kwarg) -> np.ndarray:
         raise NotImplementedError
 
-    def analyze(self, coordinates, data, dry=False, params={}, **fit_kwargs):
+    def analyze(self, coordinates, data, dry=False, params={}, **fit_kwargs) -> lmfit.model.ModelResult:
         model = lmfit.model.Model(self.model)
 
         _params = lmfit.Parameters()

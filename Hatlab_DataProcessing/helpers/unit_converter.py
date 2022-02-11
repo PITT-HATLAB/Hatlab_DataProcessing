@@ -1,3 +1,5 @@
+import numpy as np
+
 def t2f(t_unit):
     if t_unit == "ns":
         return "GHz"
@@ -21,3 +23,31 @@ def f2t(f_unit):
         return "s"
     else:
         raise NameError("unsupported freq unit")
+
+def freqUnit(f_unit):
+    if f_unit == "GHz":
+        return 10**9
+    elif f_unit == "MHz":
+        return 10**6
+    elif f_unit == "kHz":
+        return 10**3
+    elif f_unit == "Hz":
+        return 10**0
+    else:
+        raise NameError("unsupported freq unit")
+
+def rounder(value, digit=5):
+    return f"{value:.{digit}e}"
+
+
+def magPhase2realImag(mag, phase):
+    lin = 10 ** (mag / 20.0)
+    real = lin * np.cos(phase)
+    imag = lin * np.sin(phase)
+    return real, imag
+
+
+def realImag2magPhase(real, imag):
+    mag = 10 * np.log10(real ** 2 + imag ** 2)
+    phase = np.unwrap(np.angle(real + 1j * imag))
+    return mag, phase

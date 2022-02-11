@@ -64,8 +64,13 @@ class Analysis(object):
     def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
                  data: np.ndarray):
         """Constructor of `Analysis`. """
-        self.coordinates = np.array(coordinates)
-        self.data = np.array(data)
+        self.coordinates = coordinates
+        self.data = data
+        self.pre_process()
+
+    def pre_process(self):
+        self.coordinates = np.array(self.coordinates)
+        self.data = np.array(self.data)
 
     def analyze(self, coordinates, data, *args: Any,
                 **kwargs: Any) -> AnalysisResult:
