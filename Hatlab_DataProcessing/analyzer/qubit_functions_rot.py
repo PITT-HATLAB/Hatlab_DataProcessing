@@ -23,14 +23,14 @@ class QubitBasicResult_rot(AnalysisResult):
         self.lmfit_result=lmfit_result
         self.rot_result = rot_result if rot_result is not None else {}
 
-    def plot(self, figName=None):
+    def plot(self, **figArgs):
         g_val = self.rot_result["g_val"]
         e_val = self.rot_result["e_val"]
         i_new = self.rot_result["i_new"]
         q_new = self.rot_result["q_new"]
         x_data = self.lmfit_result.userkws["coordinates"]
         result_str = self.params["result_str"].value
-        plt.figure(figName)
+        plt.figure(**figArgs)
         plt.title(result_str)
         plt.plot(x_data, q_new, ".")
         plt.plot(x_data, i_new, ".")        
