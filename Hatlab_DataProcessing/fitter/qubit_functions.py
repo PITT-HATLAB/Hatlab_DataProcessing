@@ -55,7 +55,7 @@ class PiPulseTuneUp(Fit):
 
         return QubitBasicResult(cosFitResult,
                                 dict(zero_amp=zero_amp,pi_pulse_amp=pi_pulse_amp, pi_2_pulse_amp=pi_2_pulse_amp,
-                                     result_str=result_str))
+                                     A=cosFitResult.params["A"].value, result_str=result_str))
 
 
 class T1Decay(Fit):

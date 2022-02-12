@@ -175,7 +175,11 @@ class CavReflectionPhaseOnly(Fit):
         f0_idx = int(np.floor(np.average(np.where(abs(phase - np.average(phase)) < 0.2))))
         f0Guess = freq[f0_idx]
         phaseOffGuess = np.mean(phase)
-        eDelayGuess = (phase[-1] - phase[0]) / (freq[-1] - freq[0]) / TWOPI
+        if phase[-1] > phase[0]:
+            eDelayGuess = (phase[-1] - phase[0]- PI) / (freq[-1] - freq[0]) / TWOPI
+        else:
+            if phase[-1] > phase[0]:
+                eDelayGuess = (phase[-1] - phase[0] + PI) / (freq[-1] - freq[0]) / TWOPI
 
         # guess algorithm from https://lmfit.github.io/lmfit-py/examples/example_complex_resonator_model.html
         Q_min = 0.1 * (f0Guess / (freq[-1] - freq[0]))  # assume the user isn't trying to fit just a small part of a resonance curve
