@@ -6,6 +6,19 @@ import lmfit
 from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
 
 
+class Linear(Fit):
+    @staticmethod
+    def model(coordinates, k, b) -> np.ndarray:
+        """$ k * x + b $"""
+        return k * coordinates + b
+
+    @staticmethod
+    def guess(coordinates, data):
+        k = (data[-1] - data[0]) / (coordinates[-1] - coordinates[0])
+        b = data[-1] - k * data[0]
+        return dict(k=k, b=b)
+
+
 class Cosine(Fit):
     @staticmethod
     def model(coordinates, A, f, phi, of) -> np.ndarray:
