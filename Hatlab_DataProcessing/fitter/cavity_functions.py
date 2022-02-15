@@ -93,11 +93,11 @@ class CavReflection(Fit):
     def guess(coordinates, data):
         freq = coordinates
         phase = np.unwrap(np.angle(data))
-        mag = np.abs(data)
+        amp = np.abs(data)
 
-        f0Guess = freq[np.argmin(mag)]  # smart guess of "it's probably the lowest point"
-        magBackGuess = np.average(mag[:int(len(freq) / 5)])
-        phaseOffGuess = phase[np.argmin(mag)]
+        f0Guess = freq[np.argmin(amp)]  # smart guess of "it's probably the lowest point"
+        magBackGuess = np.average(amp[:int(len(freq) / 5)])
+        phaseOffGuess = phase[np.argmin(amp)]
 
         # guess algorithm from https://lmfit.github.io/lmfit-py/examples/example_complex_resonator_model.html
         Q_min = 0.1 * (f0Guess / (freq[-1] - freq[0]))  # assume the user isn't trying to fit just a small part of a resonance curve
@@ -105,8 +105,9 @@ class CavReflection(Fit):
         min_delta_f = delta_f[delta_f > 0].min()
         Q_max = f0Guess / min_delta_f  # assume data actually samples the resonance reasonably
         QtotGuess = np.sqrt(Q_min * Q_max)  # geometric mean, why not?
-        QextGuess = QtotGuess / (1 - np.abs(data[np.argmin(mag)]))
-        QintGuess = 1 / (1 / QtotGuess + 1 / QextGuess)
+        QextGuess = 2 * QtotGuess / (1 - amp[np.argmin(amp)]/magBackGuess)
+        print(QtotGuess, QextGuess, amp[np.argmin(amp)])
+        QintGuess = 1 / (1 / QtotGuess - 1 / QextGuess)
 
         Qext = lmfit.Parameter("Qext", value=QextGuess, min=QextGuess / 100, max=QextGuess * 100)
         Qint = lmfit.Parameter("Qint", value=QintGuess, min=QintGuess / 100, max=QintGuess * 100)
@@ -205,13 +206,15 @@ class CavReflectionPhaseOnly(Fit):
 
 
 if __name__ == '__main__':
+    import h5py
     filepath = r'L:\Data\WISPE3D\Modes\20210809\CavModes\Cav'
     (freq, real, imag, mag, phase) = getVNAData(filepath, plot=0)
 
-    cavRef = CavReflectionPhaseOnly(freq, real + 1j * imag)
+    cavRef = CavReflection(freq, real + 1j * imag)
     results = cavRef.run(params={"Qext": lmfit.Parameter("Qext", value=3.48354e+03), "Qint": lmfit.Parameter("Qint", value=7e3)})
     results.plot()
     results.print()
+    print(cavRef.guess(cavRef.coordinates, cavRef.data))
 
     # results = cavRef.run(dry=True, params={"Qext": lmfit.Parameter("Qext", value=3.48354e+03), "Qint": lmfit.Parameter("Qint", value=7e3)})
     # results.lmfit_result.plot()
