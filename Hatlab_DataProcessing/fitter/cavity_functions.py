@@ -36,8 +36,8 @@ def cav_ref_func(freq, Qext, Qint, f0):
     """"reflection function of a harmonic oscillator"""
     omega0 = f0 * TWOPI
     delta = freq * TWOPI - omega0
-    S_11_nume = 1 - Qint / Qext + 1j * 2 * Qint * delta / omega0
-    S_11_denom = 1 + Qint / Qext + 1j * 2 * Qint * delta / omega0
+    S_11_nume = 1 - Qint / Qext - 1j * 2 * Qint * delta / omega0
+    S_11_denom = 1 + Qint / Qext - 1j * 2 * Qint * delta / omega0
     S11 = (S_11_nume / S_11_denom)
     return S11
 
@@ -83,10 +83,22 @@ class CavReflectionResult():
 
 
 class CavReflection(Fit):
-    @staticmethod
-    def model(coordinates, Qext, Qint, f0, magBack, phaseOff) -> np.ndarray:
+    def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
+                 data: np.ndarray, conjugate:bool=True):
+        """ fit cavity reflection function
+        :param conjugate: fit to conjugated cavity reflection function (for VNA data)
+        """
+        self.coordinates = coordinates
+        self.data = data
+        self.conjugate = conjugate
+        self.pre_process()
+
+    def model(self, coordinates, Qext, Qint, f0, magBack, phaseOff) -> np.ndarray:
         """"reflection function of a harmonic oscillator"""
-        S11 = magBack * cav_ref_func(coordinates, Qext, Qint, f0) * np.exp(1j * phaseOff)
+        S11 = cav_ref_func(coordinates, Qext, Qint, f0)
+        if self.conjugate:
+            S11 = S11.conjugate()
+        S11 *= magBack * np.exp(1j * phaseOff)
         return S11
 
     @staticmethod
@@ -97,7 +109,7 @@ class CavReflection(Fit):
 
         f0Guess = freq[np.argmin(amp)]  # smart guess of "it's probably the lowest point"
         magBackGuess = np.average(amp[:int(len(freq) / 5)])
-        phaseOffGuess = phase[np.argmin(amp)]
+        phaseOffGuess = phase[0]
 
         # guess algorithm from https://lmfit.github.io/lmfit-py/examples/example_complex_resonator_model.html
         Q_min = 0.1 * (f0Guess / (freq[-1] - freq[0]))  # assume the user isn't trying to fit just a small part of a resonance curve
@@ -106,7 +118,6 @@ class CavReflection(Fit):
         Q_max = f0Guess / min_delta_f  # assume data actually samples the resonance reasonably
         QtotGuess = np.sqrt(Q_min * Q_max)  # geometric mean, why not?
         QextGuess = 2 * QtotGuess / (1 - amp[np.argmin(amp)]/magBackGuess)
-        print(QtotGuess, QextGuess, amp[np.argmin(amp)])
         QintGuess = 1 / (1 / QtotGuess - 1 / QextGuess)
 
         Qext = lmfit.Parameter("Qext", value=QextGuess, min=QextGuess / 100, max=QextGuess * 100)
@@ -156,14 +167,26 @@ class CavReflectionResult_Phase():
 
 
 class CavReflectionPhaseOnly(Fit):
+    def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
+                 data: np.ndarray, conjugate:bool=True):
+        """ fit cavity reflection function phase only.
+
+        :param conjugate: fit to conjugated cavity reflection function (for VNA data)
+        """
+        self.coordinates = coordinates
+        self.data = data
+        self.conjugate = conjugate
+        self.pre_process()
+
     def pre_process(self):
         self.data = np.unwrap(np.angle(self.data))
 
-    @staticmethod
-    def model(coordinates, Qext, Qint, f0, phaseOff, eDelay) -> np.ndarray:
+    def model(self, coordinates, Qext, Qint, f0, phaseOff, eDelay) -> np.ndarray:
         """"reflection function of a harmonic oscillator"""
         S11 = cav_ref_func(coordinates, Qext, Qint, f0)
-        S11 *= np.exp(1j * (phaseOff+eDelay * (coordinates - f0) * TWOPI))
+        if self.conjugate:
+            S11 = S11.conjugate()
+        S11 *= np.exp(1j * (phaseOff + eDelay * (coordinates - f0) * TWOPI))
         phase = np.unwrap(np.angle(S11))
         return phase
 
@@ -175,11 +198,7 @@ class CavReflectionPhaseOnly(Fit):
         f0_idx = int(np.floor(np.average(np.where(abs(phase - np.average(phase)) < 0.2))))
         f0Guess = freq[f0_idx]
         phaseOffGuess = np.mean(phase)
-        if phase[-1] > phase[0]:
-            eDelayGuess = (phase[-1] - phase[0] - PI) / (freq[-1] - freq[0]) / TWOPI
-        else:
-            eDelayGuess = (phase[-1] - phase[0] + PI) / (freq[-1] - freq[0]) / TWOPI
-        print(eDelayGuess )
+        eDelayGuess = (phase[f0_idx//3] - phase[0]) / (freq[f0_idx//3] - freq[0]) / TWOPI
 
         # guess algorithm from https://lmfit.github.io/lmfit-py/examples/example_complex_resonator_model.html
         Q_min = 0.1 * (f0Guess / (freq[-1] - freq[0]))  # assume the user isn't trying to fit just a small part of a resonance curve
@@ -187,8 +206,8 @@ class CavReflectionPhaseOnly(Fit):
         min_delta_f = delta_f[delta_f > 0].min()
         Q_max = f0Guess / min_delta_f  # assume data actually samples the resonance reasonably
         QtotGuess = np.sqrt(Q_min * Q_max)  # geometric mean, why not?
-        QextGuess = QtotGuess / (1 - np.abs(data[f0_idx]))
-        QintGuess = 1 / (1 / QtotGuess + 1 / QextGuess)
+        QextGuess = QtotGuess * 2
+        QintGuess = 1 / (1 / QtotGuess - 1 / QextGuess)
 
         Qext = lmfit.Parameter("Qext", value=QextGuess, min=QextGuess / 100, max=QextGuess * 100)
         Qint = lmfit.Parameter("Qint", value=QintGuess, min=QintGuess / 100, max=QintGuess * 100)
