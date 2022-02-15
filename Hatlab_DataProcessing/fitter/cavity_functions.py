@@ -124,7 +124,7 @@ class CavReflection(Fit):
         Qint = lmfit.Parameter("Qint", value=QintGuess, min=QintGuess / 100, max=QintGuess * 100)
         f0 = lmfit.Parameter("f0", value=f0Guess, min=freq[0], max=freq[-1])
         magBack = lmfit.Parameter("magBack", value=magBackGuess, min=magBackGuess / 1.1, max=magBackGuess * 1.1)
-        phaseOff = lmfit.Parameter("phaseOff", value=phaseOffGuess, min=-PI, max=PI)
+        phaseOff = lmfit.Parameter("phaseOff", value=phaseOffGuess, min=-TWOPI, max=TWOPI)
 
         return dict(Qext=Qext, Qint=Qint, f0=f0, magBack=magBack, phaseOff=phaseOff)
 
