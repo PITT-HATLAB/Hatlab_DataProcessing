@@ -22,6 +22,11 @@ class QubitBasicResult_rot(AnalysisResult):
         super().__init__(parameters)
         self.lmfit_result=lmfit_result
         self.rot_result = rot_result if rot_result is not None else {}
+    
+    def print_ge_rotation(self):
+        rot_dict = {k: self.rot_result[k] for k in ["g_val", "e_val", "rot_angle"]}
+        print(rot_dict)
+        return rot_dict
 
     def plot(self, **figArgs):
         g_val = self.rot_result["g_val"]

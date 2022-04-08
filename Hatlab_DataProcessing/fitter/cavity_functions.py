@@ -195,7 +195,8 @@ class CavReflectionPhaseOnly(Fit):
         freq = coordinates
         phase = data
 
-        f0_idx = int(np.floor(np.average(np.where(abs(phase - np.average(phase)) < 0.2))))
+        # f0_idx = int(np.floor(np.average(np.where(abs(phase - np.average(phase)) < 0.2))))
+        f0_idx = len(phase)//2
         f0Guess = freq[f0_idx]
         phaseOffGuess = np.mean(phase)
         eDelayGuess = (phase[f0_idx//3] - phase[0]) / (freq[f0_idx//3] - freq[0]) / TWOPI

@@ -28,7 +28,7 @@ class RotateData(Analysis):
             def std_q(rot_agl_):
                 i_temp, q_temp = rotate_complex(i_data, q_data, rot_agl_)
                 return np.std(q_temp)
-            res = minimize_scalar(std_q, bounds=[0, 2 * np.pi])
+            res = minimize_scalar(std_q, bounds=[0, 360])
             rotation_angle = res.x
 
             # -------- old searching method -----------------------------
@@ -49,7 +49,7 @@ def rotate_complex(real_part, imag_part, angle):
     """
     rotate the complex number as rad units.
     """
-    iq_new = (real_part + 1j * imag_part) * np.exp(1j * np.pi * angle)
+    iq_new = (real_part + 1j * imag_part) * np.exp(1j * np.pi * angle/180)
     return iq_new.real, iq_new.imag
 
 
