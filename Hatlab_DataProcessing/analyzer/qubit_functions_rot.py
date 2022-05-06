@@ -29,8 +29,8 @@ class QubitBasicResult_rot(AnalysisResult):
         return rot_dict
 
     def plot(self, **figArgs):
-        g_val = self.rot_result["g_val"]
-        e_val = self.rot_result["e_val"]
+        g_val = self.rot_result.get("g_val", None)
+        e_val = self.rot_result.get("e_val", None)
         i_new = self.rot_result["i_new"]
         q_new = self.rot_result["q_new"]
         x_data = self.lmfit_result.userkws["coordinates"]
@@ -40,7 +40,7 @@ class QubitBasicResult_rot(AnalysisResult):
         plt.plot(x_data, q_new, ".")
         plt.plot(x_data, i_new, ".")        
         plt.plot(x_data, self.lmfit_result.best_fit, linewidth=3)
-        if self.rot_result != {}:
+        if (g_val != None) and (e_val != None):
             _hline(g_val, e_val)
 
 
@@ -69,9 +69,9 @@ class PiPulseTuneUp(Analysis):
 
 class T1Decay(Analysis):
     @staticmethod
-    def analyze(x_data, iq_data, rot_result, dry=False, params={}, **fit_kwargs):
+    def analyze(x_data, iq_data, rot_result={}, dry=False, params={}, **fit_kwargs):
         # rotate data
-        rot_angle = rot_result["rot_angle"]
+        rot_angle = rot_result.get("rot_angle", "find")
         rotIQ = RotateData(x_data, iq_data)
         iq_new = rotIQ.run(rot_angle)
         #fit to decay
@@ -86,9 +86,9 @@ class T1Decay(Analysis):
 
 class T2Ramsey(Analysis):
     @staticmethod
-    def analyze(x_data, iq_data, rot_result, dry=False, params={}, **fit_kwargs):
+    def analyze(x_data, iq_data, rot_result={}, dry=False, params={}, **fit_kwargs):
         # rotate data
-        rot_angle = rot_result["rot_angle"]
+        rot_angle = rot_result.get("rot_angle", "find")
         rotIQ = RotateData(x_data, iq_data)
         iq_new = rotIQ.run(rot_angle)
         #fit to decay
