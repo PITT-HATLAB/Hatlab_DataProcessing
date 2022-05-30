@@ -16,8 +16,7 @@ from scipy.optimize import curve_fit
 from matplotlib.patches import Circle, Wedge, Polygon
 from scipy.ndimage import gaussian_filter as gf
 
-from HaPiCodes.data_process import fittingAndDataProcess as fdp
-
+from Hatlab_DataProcessing.fitter.gaussian_2d import Gaussian2D_2Blob, Gaussian2D_3Blob
 
 class PostSelectionData_Base():
     def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, msmtInfoDict: dict= None, selPattern: List = [1, 0]):
@@ -132,13 +131,22 @@ class PostSelectionData(PostSelectionData_Base):
                 mute_ = 0
             else:
                 mute_ = 1
-            fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess, histRange=histRange)
-            sigma_g = np.sqrt(fitRes[4] ** 2 + fitRes[5] ** 2)
-            sigma_e = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
+
+            z_, x_, y_ = np.histogram2d(Idata, Qdata, bins=201, range=np.array(histRange))
+            z_ = z_.T
+            xd, yd = np.meshgrid(x_[:-1], y_[:-1])
+
+            gau2DFit = Gaussian2D_2Blob((xd, yd), z_)
+            fitResult = gau2DFit.run()
+
+            # fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess, histRange=histRange)
+            sigma_g = fitResult.sigma_g
+            sigma_e = fitResult.sigma_e
 
             if plotGauFitting:
-                print(fitRes[0], ',', fitRes[1], ',', fitRes[2], ',', fitRes[3], ',', sigma_g, ',', sigma_e)
-            geLocation = [*fitRes[:4], sigma_g, sigma_e]
+                fitResult.print()
+                fitResult.plot()
+            geLocation = [fitResult.x1, fitResult.y1, fitResult.x2, fitResult.y2, sigma_g, sigma_e]
         self.geLocation = geLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.g_r, self.e_r = self.geLocation
 
