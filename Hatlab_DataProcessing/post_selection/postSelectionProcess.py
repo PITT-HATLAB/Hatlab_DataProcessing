@@ -1,52 +1,52 @@
+"""
+Created on Mon May 30 12:04:54 2022
+
+@author: chao
+"""
+
+
 from typing import List, Callable, Union, Tuple, Dict
 import warnings
 import time
 
 import matplotlib.pyplot as plt
-import h5py
-import lmfit as lmf
-import math
-import yaml
+import lmfit
 import numpy as np
-from matplotlib.widgets import Slider
-
 import h5py
-import scipy as sp
-from scipy.optimize import curve_fit
-from matplotlib.patches import Circle, Wedge, Polygon
-from scipy.ndimage import gaussian_filter as gf
+
+
 
 from Hatlab_DataProcessing.fitter.gaussian_2d import Gaussian2D_2Blob, Gaussian2D_3Blob
+from Hatlab_DataProcessing.slider_plot.sliderPlot import sliderHist2d
+
 
 class PostSelectionData_Base():
-    def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, msmtInfoDict: dict= None, selPattern: List = [1, 0]):
+    def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
+                 histRange=None):
         """ A base class fro post selection data. doesn't specify the size of Hilbert space of the qubit.
         :param data_I:  I data
         :param data_Q:  Q data
-        :param msmtInfoDict: dictionary from the measurement information yaml file
         :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
             in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
             used for selection and the third one is experiment point.
-        :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
         """
-        if msmtInfoDict is None:
-            msmtInfoDict = {}
 
         self.data_I_raw = data_I
         self.data_Q_raw = data_Q
         self.selPattern = selPattern
-        self.msmtInfoDict = msmtInfoDict
-
-        data_max = np.max(np.abs(np.array([data_I, data_Q])))
-        autoHistRange = [[-data_max, data_max],[-data_max, data_max]]
-        self.msmtInfoDict["histRange"] = self.msmtInfoDict.get('histRange', autoHistRange)
+        if histRange is None:
+            data_max = np.max(np.abs(np.array([data_I, data_Q])))
+            self.histRange = [[-data_max, data_max], [-data_max, data_max]]
+        else:
+            self.histRange = histRange
 
         n_avg = len(data_I)
         pts_per_exp = len(data_I[0])
         msmt_per_sel = len(selPattern)
         if pts_per_exp % msmt_per_sel != 0:
-            raise ValueError(f"selPattern is not valid. the length of selPattern {len(selPattern)} is no a factor of "
-                             f"points per experiment {pts_per_exp}")
+            raise ValueError(
+                f"selPattern is not valid. the length of selPattern {len(selPattern)} is no a factor of "
+                f"points per experiment {pts_per_exp}")
         n_sweep = int(np.round(pts_per_exp // msmt_per_sel))  # e.g. len(xData)
 
         self.sel_data_msk = np.array(selPattern, dtype=bool)
@@ -66,7 +66,7 @@ class PostSelectionData_Base():
         return k_ * (x - center_x) + center_y
 
     def mask_state_by_circle(self, sel_idx: int, state_x: float, state_y: float, state_r: float,
-                             plot: Union[bool, int] = True, state_name: str = ""):
+                             plot: Union[bool, int] = True, state_name: str = "", plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param state_x: x position of the state on IQ plane
@@ -77,20 +77,27 @@ class PostSelectionData_Base():
         :return:
         """
         if self.selPattern[sel_idx] != 1:
-            raise ValueError(f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
+            raise ValueError(
+                f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
         idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
         I_sel_ = self.I_sel[:, :, idx_]
         Q_sel_ = self.Q_sel[:, :, idx_]
         mask = (I_sel_ - state_x) ** 2 + (Q_sel_ - state_y) ** 2 < (state_r) ** 2
         if plot:
-            plt.figure(figsize=(7, 7))
-            plt.title(f'{state_name} state selection range')
-            plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=self.msmtInfoDict['histRange'])
+            if plot_ax is None:
+                fig, ax = plt.subplots(1, 1)
+            else:
+                ax = plot_ax
+            ax.set_title(f'{state_name} state selection range')
+            ax.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101, range=self.histRange)
             theta = np.linspace(0, 2 * np.pi, 201)
-            plt.plot(state_x + state_r * np.cos(theta), state_y + state_r * np.sin(theta), color='r')
+            ax.plot(state_x + state_r * np.cos(theta), state_y + state_r * np.sin(theta),
+                     color='r')
+            ax.set_aspect(1)
+
         return mask
 
-    def sel_data(self, mask, plot=True):
+    def sel_data(self, mask, plot=True, plot_ax=None):
         self.I_vld = []
         self.Q_vld = []
         for i in range(self.I_exp.shape[1]):
@@ -98,85 +105,109 @@ class PostSelectionData_Base():
                 self.I_vld.append(self.I_exp[:, i, j][mask[:, i]])
                 self.Q_vld.append(self.Q_exp[:, i, j][mask[:, i]])
         if plot:
-            plt.figure(figsize=(7, 7))
+            if plot_ax is None:
+                fig, ax = plt.subplots(1, 1)
+            else:
+                ax = plot_ax
             selNum = np.average(list(map(len, self.I_vld)))
-            plt.title('experiment pts after selection\n'+"sel%: "+ str(selNum / len(self.data_I_raw)))
-            plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.msmtInfoDict['histRange'])
+            ax.set_title(
+                'all experiment pts after selection\n' + "sel%: " + str(selNum / len(self.data_I_raw)))
+            ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.histRange)
+            ax.set_aspect(1)
             print("sel%: " + str(selNum / len(self.data_I_raw)))
 
         selNum = np.average(list(map(len, self.I_vld)))
         print("sel%: " + str(selNum / len(self.data_I_raw)))
         return self.I_vld, self.Q_vld
 
+    def auto_fit(self, nBlobs=2, fitGuess={}, bins=201, stateMask=None, plotGauFitting=True):
+        fit_I = self.I_sel.flatten()
+        fit_Q = self.Q_sel.flatten()
+        self.stateMask = stateMask
 
-class PostSelectionData(PostSelectionData_Base):
-    def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 geLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess: dict=None, histRange=None):
-        super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
+        z_, x_, y_ = np.histogram2d(fit_I, fit_Q, bins=bins, range=np.array(self.histRange))
+        z_ = z_.T
+        xd, yd = np.meshgrid(x_[:-1], y_[:-1])
+
+        if nBlobs == 2:
+            gau2DFit = Gaussian2D_2Blob((xd, yd), z_, stateMask)
+        elif nBlobs == 3:
+            gau2DFit = Gaussian2D_3Blob((xd, yd), z_, stateMask)
+        else:
+            raise ValueError(f"gau blob number {nBlobs} not implemented")
+
+        fitResult = gau2DFit.run(params=fitGuess)
+        if plotGauFitting:
+            fitResult.print()
+            fitResult.plot()
+
+        return fitResult
+
+    def sliderPlotSelectedData(self, xData:dict=None):
+        """ plot the selected data histogram in a slider plot
+        :param xData: dictionary that contains the variables that are swept in the experiment.
+                        e.g : {"amp", np.linspace(0,1 101)}
+        """
+        if xData is None:
+            xData = {"exp": np.arange(len(self.I_vld))}
+
+        self.resultSld = sliderHist2d(self.I_vld, self.Q_vld,
+                                      axes_dict=xData,
+                                      range=self.histRange)
+
+
+class PostSelectionData_ge(PostSelectionData_Base):
+    def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
+                 geLocation: List[float] = None, plotGauFitting=True,
+                 fitGuess: dict = {}, stateMask: int = None, histBins=201, histRange=None):
+        super().__init__(data_I, data_Q, selPattern, histRange)
         """ A post selection data class that assumes a qubit has two possible states
         :param data_I:  I data
         :param data_Q:  Q data
-        :param msmtInfoDict: dictionary from the measurement information yaml file
         :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
             in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
             used for selection and the third one is experiment point.
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
-        :param fitGuess: 
+        :param fitGuess: guess parameters for gaussian fitting. should be dict of lmfit Parameters. This could be
+                         useful when the blobs are slowly rotating.
         """
 
         # fit for g, e gaussian if g/e state location is not provided
-        if geLocation == "AutoFit":
-            fitData = np.array([self.I_sel.flatten(), self.Q_sel.flatten()])
-            if plotGauFitting == 1:
-                mute_ = 0
-            else:
-                mute_ = 1
-
-            z_, x_, y_ = np.histogram2d(Idata, Qdata, bins=201, range=np.array(histRange))
-            z_ = z_.T
-            xd, yd = np.meshgrid(x_[:-1], y_[:-1])
-
-            gau2DFit = Gaussian2D_2Blob((xd, yd), z_)
-            fitResult = gau2DFit.run()
-
-            # fitRes = fdp.fit_Gaussian(fitData, plot=plotGauFitting, mute=mute_, fitGuess=fitGuess, histRange=histRange)
-            sigma_g = fitResult.sigma_g
-            sigma_e = fitResult.sigma_e
-
-            if plotGauFitting:
-                fitResult.print()
-                fitResult.plot()
-            geLocation = [fitResult.x1, fitResult.y1, fitResult.x2, fitResult.y2, sigma_g, sigma_e]
+        if geLocation is None:
+            self.stateFitResult = self.auto_fit(2, fitGuess, histBins, stateMask, plotGauFitting)
+            geLocation = self.stateFitResult.state_location_list
         self.geLocation = geLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.g_r, self.e_r = self.geLocation
 
     def ge_split_line(self, x):
         return self.state_split_line(self.g_x, self.g_y, self.e_x, self.e_y, x)
 
-    def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
+    def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1,
+                         plot: Union[bool, int] = True, plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
-        :param circle_size: size of the selection circle, in unit of g_r (sigma of g state gaussion blob)
+        :param circle_size: size of the selection circle, in unit of g_r (sigma of g state Gaussian blob)
         :param plot:
         :return:
         """
         mask = self.mask_state_by_circle(sel_idx, self.g_x, self.g_y, self.g_r * circle_size,
-                                         plot, "g")
+                                         plot, "g", plot_ax)
         return mask
 
-    def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
+    def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1,
+                         plot: Union[bool, int] = True, plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
-        :param circle_size: size of the selection circle, in unit of e_r (sigma of e state gaussion blob)
+        :param circle_size: size of the selection circle, in unit of e_r (sigma of e state Gaussian blob)
         :param plot:
         :return:
         """
         mask = self.mask_state_by_circle(sel_idx, self.e_x, self.e_y, self.e_r * circle_size,
-                                         plot, "e")
+                                         plot, "e", plot_ax)
         return mask
 
     def mask_g_by_line(self, sel_idx: int = 0, line_rotate: float = 0, line_shift: float = 0,
-                       plot: Union[bool, int] = True):
+                       plot: Union[bool, int] = True, plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param line_rotate: rotation angle the split line in counter clockwise direction, in unit of rad. Zero angle
@@ -186,7 +217,8 @@ class PostSelectionData(PostSelectionData_Base):
         :return:
         """
         if self.selPattern[sel_idx] != 1:
-            raise ValueError(f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
+            raise ValueError(
+                f"sel_idx must be a position with value 1 in selPattern {self.selPattern}")
         idx_ = np.where(np.where(np.array(self.selPattern) == 1)[0] == sel_idx)[0][0]
         I_sel_ = self.I_sel[:, :, idx_]
         Q_sel_ = self.Q_sel[:, :, idx_]
@@ -206,15 +238,19 @@ class PostSelectionData(PostSelectionData_Base):
             mask = Q_sel_ > shift_split_line(I_sel_)
 
         if plot:
-            plt.figure(figsize=(7, 7))
-            plt.title('g state selection range')
-            h, xedges, yedges, image = plt.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101,
-                                                  range=self.msmtInfoDict['histRange'])
-            plt.plot(xedges, shift_split_line(xedges), color='r')
-            plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
+            if plot_ax is None:
+                fig, ax = plt.subplots(1, 1)
+            else:
+                ax = plot_ax
+            ax.set_title('g state selection range')
+            h, xedges, yedges, image = ax.hist2d(I_sel_.flatten(), Q_sel_.flatten(), bins=101,
+                                                  range=self.histRange)
+            ax.plot(xedges, shift_split_line(xedges), color='r')
+            ax.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
+            ax.set_aspect(1)
         return mask
 
-    def cal_g_pct(self, plot=False, correct=False):
+    def cal_g_pct(self, plot=False, plot_ax=None):
         g_pct_list = []
         for i in range(len(self.I_vld)):
             I_v = self.I_vld[i]
@@ -227,18 +263,22 @@ class PostSelectionData(PostSelectionData_Base):
             try:
                 g_pct_list.append(len(I_v[mask]) / n_pts)
             except ZeroDivisionError:
-                warnings.warn("! no valid point, this is probably because the gaussian fitting, please double check system and fitting function")
+                warnings.warn(
+                    "! no valid point, this is probably because the gaussian fitting, please double check system and fitting function")
                 g_pct_list.append(1)
         if plot:
-            plt.figure(figsize=(7, 7))
-            h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
-                                                  range=self.msmtInfoDict['histRange'])
-            plt.plot(xedges, self.ge_split_line(xedges), color='r')
-            plt.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
+            if plot_ax is None:
+                fig, ax = plt.subplots(1, 1)
+            else:
+                ax = plot_ax
+            ax.set_title("g/e state region")
+            h, xedges, yedges, image = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld),
+                                                  bins=101,
+                                                  range=self.histRange)
+            ax.plot(xedges, self.ge_split_line(xedges), color='r')
+            ax.plot([(self.g_x + self.e_x) / 2], [(self.g_y + self.e_y) / 2], "*")
+            ax.set_aspect(1)
 
-        if correct:
-            e0, e1 = self.msmtInfoDict["MSMTError"]
-            g_pct_list = (np.array(g_pct_list) - e1) / (e0 - e1)
         return np.array(g_pct_list)
 
     def cal_stateForEachMsmt(self):
@@ -257,28 +297,29 @@ class PostSelectionData(PostSelectionData_Base):
 
 
 class PostSelectionData_gef(PostSelectionData_Base):
-    def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, msmtInfoDict: dict=None, selPattern: List = [1, 0],
-                 gefLocation: List[float] = "AutoFit", plotGauFitting=True, fitGuess=None):
-        super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
+    def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
+                 gefLocation: List[float] = None, plotGauFitting=True,
+                 fitGuess=None, stateMask: int = None, histBins=201, histRange=None):
+        super().__init__(data_I, data_Q, selPattern, histRange)
         """ A post selection data class that assumes a qubit has three possible states
         :param data_I:  I data
         :param data_Q:  Q data
-        :param msmtInfoDict: dictionary from the measurement information yaml file
         :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
             in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
             used for selection and the third one is experiment point.
-        :param geLocation:  [g_x, g_y, e_x, e_y, f_x, f_y, g_r, e_r, f_r]
+        :param gefLocation:  [g_x, g_y, e_x, e_y, f_x, f_y, g_r, e_r, f_r],
+        :param plotGauFitting: plot fitting result or not
+        :param fitGuess:  guess parameter for gau blob fitting, should be dict of lmfit Parameters. This could be
+                         useful when the blobs are slowly rotating.
+        :param stateMask: guessed size of each blob, in unit of number of bins
+        :param histBins: number of bins for histogram
+        :param histRange: range of histogram
         """
-
         # fit for g, e, f gaussian if g/e/f state location is not provided
-        if gefLocation == "AutoFit":
-            fitData = np.array([self.I_sel.flatten(), self.Q_sel.flatten()])
-            fitRes = fdp.fit_Gaussian(fitData, blob=3, plot=plotGauFitting, mute=1, fitGuess=fitGuess)
-            sigma_g = np.sqrt(fitRes[6] ** 2 + fitRes[7] ** 2)
-            sigma_e = np.sqrt(fitRes[8] ** 2 + fitRes[9] ** 2)
-            sigma_f = np.sqrt(fitRes[10] ** 2 + fitRes[11] ** 2)
-            gefLocation = [*fitRes[:6], sigma_g, sigma_e, sigma_f]
-            print(fitRes[0], ',', fitRes[1], ',', fitRes[2], ',', fitRes[3], ',', fitRes[4], ',', fitRes[5], ',', sigma_g, ',', sigma_e, ',', sigma_f)
+        if gefLocation == None:
+            self.stateFitResult = self.auto_fit(3, fitGuess, histBins, stateMask, plotGauFitting)
+            gefLocation = self.stateFitResult.state_location_list
+
         self.gefLocation = gefLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.f_x, self.f_y, self.g_r, self.e_r, self.f_r = self.gefLocation
 
@@ -286,11 +327,11 @@ class PostSelectionData_gef(PostSelectionData_Base):
         d_ = 2 * (self.g_x * (self.e_y - self.f_y) + self.e_x * (self.f_y - self.g_y)
                   + self.f_x * (self.g_y - self.e_y))
         self.ext_center_x = ((self.g_x ** 2 + self.g_y ** 2) * (self.e_y - self.f_y)
-                         + (self.e_x ** 2 + self.e_y ** 2) * (self.f_y - self.g_y)
-                         + (self.f_x ** 2 + self.f_y ** 2) * (self.g_y - self.e_y)) / d_
+                             + (self.e_x ** 2 + self.e_y ** 2) * (self.f_y - self.g_y)
+                             + (self.f_x ** 2 + self.f_y ** 2) * (self.g_y - self.e_y)) / d_
         self.ext_center_y = ((self.g_x ** 2 + self.g_y ** 2) * (self.f_x - self.e_x)
-                         + (self.e_x ** 2 + self.e_y ** 2) * (self.g_x - self.f_x)
-                         + (self.f_x ** 2 + self.f_y ** 2) * (self.e_x - self.g_x)) / d_
+                             + (self.e_x ** 2 + self.e_y ** 2) * (self.g_x - self.f_x)
+                             + (self.f_x ** 2 + self.f_y ** 2) * (self.e_x - self.g_x)) / d_
 
         self.in_center_x = np.mean([self.g_x, self.e_x, self.f_x])
         self.in_center_y = np.mean([self.g_y, self.e_y, self.f_y])
@@ -304,7 +345,8 @@ class PostSelectionData_gef(PostSelectionData_Base):
     def gf_split_line(self, x):
         return self.state_split_line(self.g_x, self.g_y, self.f_x, self.f_y, x)
 
-    def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
+    def mask_g_by_circle(self, sel_idx: int = 0, circle_size: float = 1,
+                         plot: Union[bool, int] = True, plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param circle_size: size of the selection circle, in unit of g_r
@@ -312,10 +354,11 @@ class PostSelectionData_gef(PostSelectionData_Base):
         :return:
         """
         mask = self.mask_state_by_circle(sel_idx, self.g_x, self.g_y, self.g_r * circle_size,
-                                         plot, "g")
+                                         plot, "g", plot_ax)
         return mask
 
-    def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1, plot: Union[bool, int] = True):
+    def mask_e_by_circle(self, sel_idx: int = 0, circle_size: float = 1,
+                         plot: Union[bool, int] = True, plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param circle_size: size of the selection circle, in unit of e_r
@@ -323,11 +366,11 @@ class PostSelectionData_gef(PostSelectionData_Base):
         :return:
         """
         mask = self.mask_state_by_circle(sel_idx, self.e_x, self.e_y, self.e_r * circle_size,
-                                         plot, "e")
+                                         plot, "e", plot_ax)
         return mask
 
     def mask_f_by_circle(self, sel_idx: int = 0, circle_size: float = 1,
-                         plot: Union[bool, int] = True):
+                         plot: Union[bool, int] = True, plot_ax=None):
         """
         :param sel_idx: index of the data for selection, must be '1' position in selPattern
         :param circle_size: size of the selection circle, in unit of f_r
@@ -335,10 +378,10 @@ class PostSelectionData_gef(PostSelectionData_Base):
         :return:
         """
         mask = self.mask_state_by_circle(sel_idx, self.f_x, self.f_y, self.f_r * circle_size,
-                                         plot, "f")
+                                         plot, "f", plot_ax)
         return mask
 
-    def cal_g_pct(self, plot=True):
+    def cal_g_pct(self, plot=True, plot_ax=None):
         g_pct_list = []
         for i in range(len(self.I_vld)):
             I_v = self.I_vld[i]
@@ -352,18 +395,22 @@ class PostSelectionData_gef(PostSelectionData_Base):
             g_pct_list.append(len(g_mask) / n_pts)
 
         if plot:
-            plt.figure(figsize=(7, 7))
-            h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
-                                                  range=self.msmtInfoDict['histRange'])
+            if plot_ax is None:
+                fig, ax = plt.subplots(1, 1)
+            else:
+                ax = plot_ax
+            h, xedges, yedges, image = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld),
+                                                  bins=101,
+                                                  range=self.histRange)
 
             def get_line_range_(s1, s2):
                 """get the x range to plot for the line that splits three states"""
                 x12 = np.mean([getattr(self, f"{s1}_x"), getattr(self, f"{s2}_x")])
                 y12 = np.mean([getattr(self, f"{s1}_y"), getattr(self, f"{s2}_y")])
-                
-                v1 = [self.ext_center_x- x12, self.ext_center_y-y12 ]
-                v2 = [self.in_center_x- x12, self.in_center_y-y12 ]
-                if (np.dot(v1, v2) > 0 and v1[0] >0)  or (np.dot(v1, v2) < 0 and v1[0] < 0):
+
+                v1 = [self.ext_center_x - x12, self.ext_center_y - y12]
+                v2 = [self.in_center_x - x12, self.in_center_y - y12]
+                if (np.dot(v1, v2) > 0 and v1[0] > 0) or (np.dot(v1, v2) < 0 and v1[0] < 0):
                     return np.array([xedges[0], self.ext_center_x])
                 else:
                     return np.array([self.ext_center_x, xedges[-1]])
@@ -372,13 +419,13 @@ class PostSelectionData_gef(PostSelectionData_Base):
             x_l_ef = get_line_range_("e", "f")
             x_l_gf = get_line_range_("g", "f")
 
-            plt.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
-            plt.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
-            plt.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
-            plt.plot([self.ext_center_x], [self.ext_center_y], "*")
+            ax.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
+            ax.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
+            ax.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
+            ax.plot([self.ext_center_x], [self.ext_center_y], "*")
         return np.array(g_pct_list)
 
-    def cal_gef_pct(self, plot=True):
+    def cal_gef_pct(self, plot=True, plot_ax=None):
         g_pct_list = []
         e_pct_list = []
         f_pct_list = []
@@ -398,9 +445,13 @@ class PostSelectionData_gef(PostSelectionData_Base):
             f_pct_list.append(len(f_mask) / n_pts)
 
         if plot:
-            plt.figure(figsize=(7, 7))
-            h, xedges, yedges, image = plt.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101,
-                                                  range=self.msmtInfoDict['histRange'])
+            if plot_ax is None:
+                fig, ax = plt.subplots(1, 1)
+            else:
+                ax = plot_ax
+            h, xedges, yedges, image = ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld),
+                                                  bins=101,
+                                                  range=self.histRange)
 
             def get_line_range_(s1, s2):
                 """get the x range to plot for the line that splits three states"""
@@ -418,10 +469,10 @@ class PostSelectionData_gef(PostSelectionData_Base):
             x_l_ef = get_line_range_("e", "f")
             x_l_gf = get_line_range_("g", "f")
 
-            plt.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
-            plt.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
-            plt.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
-            plt.plot([self.ext_center_x], [self.ext_center_y], "*")
+            ax.plot(x_l_ge, self.ge_split_line(x_l_ge), color='r')
+            ax.plot(x_l_ef, self.ef_split_line(x_l_ef), color='g')
+            ax.plot(x_l_gf, self.gf_split_line(x_l_gf), color='b')
+            ax.plot([self.ext_center_x], [self.ext_center_y], "*")
         return np.array([np.array(g_pct_list), np.array(e_pct_list), np.array(f_pct_list)])
 
     def cal_stateForEachMsmt(self, gef=0):
@@ -452,6 +503,52 @@ class PostSelectionData_gef(PostSelectionData_Base):
             stateForEachMsmt.append(stateForSingleMsmt)
         return stateForEachMsmt
 
+
+def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
+                         fitGuess={}, stateMask: int = None, histBins=201, histRange=None,
+                         selCircleSize=1, xData:dict=None):
+    """simple post selection function that selects data points where the qubit is in g
+        state in the first MSMT of each two MSMTs
+        :param Idata: I data, 2d array, shape should be (nReps, nMSMTs)
+        :param Qdata: Q data, 2d array, shape should be (nReps, nMSMTs)
+        :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
+        :param plot: plot fitting and selection data
+        :param fitGuess:  guess parameter for gau blob fitting
+        :param stateMask: guessed size of each blob, in unit of number of bins
+        :param histBins: number of bins for histogram
+        :param histRange: range of histogram
+        :param selCircleSize: size of the selection circle, in unit of g_r
+                            (sigma of g state Gaussian blob)
+        :param xData: dictionary that contains the variables that are swept in the experiment.
+                        e.g : {"amp": np.linspace(0,1 101) }
+
+        :returns: averaged g state percent of each experiment MSMT
+
+    """
+    selData = PostSelectionData_ge(Idata, Qdata, [1, 0], geLocation, False,
+                                   fitGuess, stateMask, histBins, histRange)
+
+
+    if plot:
+        fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(18,5))
+        selData.stateFitResult.plot(ax1)
+        selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=plot, plot_ax=ax2)
+        I_vld, Q_vld = selData.sel_data(selMask, plot=False)
+        g_pct = selData.cal_g_pct(plot=plot, plot_ax=ax3)
+        selData.sliderPlotSelectedData(xData)
+
+
+    else:
+        selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=False)
+        I_vld, Q_vld = selData.sel_data(selMask, plot=False)
+        g_pct = selData.cal_g_pct(plot=False)
+
+
+    return g_pct, I_vld, Q_vld, selData
+
+
+
+
 if __name__ == "__main__":
     directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
     # directory = r'D:\Lab\Code\PostSelProcess_dev\\'
@@ -459,11 +556,11 @@ if __name__ == "__main__":
     f = h5py.File(directory + fileName, 'r')
     Idata = np.real(f["rawData"])[:-1]
     Qdata = np.imag(f["rawData"])[:-1]
-    msmtInfoDict = yaml.safe_load(open(directory + fileName + ".yaml", 'r'))
 
     t0 = time.time()
-    IQsel = PostSelectionData_gef(Idata, Qdata, msmtInfoDict, [1, 0],
-                                  gefLocation=[-9000, -9500, -11000, -1500, -500, -700, 3000, 3000, 3000])
+    IQsel = PostSelectionData_gef(Idata, Qdata,
+                                  gefLocation=[-9000, -9500, -11000, -1500, -500, -700, 3000, 3000,
+                                               3000])
 
     # mask0 = IQsel.mask_g_by_line(0, line_shift=0, plot=True)
     mask0 = IQsel.mask_g_by_circle(0, circle_size=1, plot=True)

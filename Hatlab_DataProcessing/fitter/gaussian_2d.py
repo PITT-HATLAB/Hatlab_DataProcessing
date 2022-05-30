@@ -33,18 +33,16 @@ def guess_gau2D_params(x, y, z, nBlobs, maskIndex=None):
     :param y: bin edges along the second dimention
     :param z: The bi-dimensional histogram of samples x and y
     :param nBlobs: number of gaussian blobs
-    :param maskIndex: distance between each blob
+    :param maskIndex: guessed size of each blob
     :return:
     """
     border = np.max(np.abs(np.array([x, y])))
-    if maskIndex is None:
-        maskIndex = int(border//200)
 
     ampList = np.zeros(nBlobs)
     x0List = np.zeros(nBlobs)
     y0List = np.zeros(nBlobs)
-    sigmaXList = np.zeros(nBlobs) + border / 4
-    sigmaYList = np.zeros(nBlobs) + border / 4
+    sigmaXList = np.zeros(nBlobs) + border / 15
+    sigmaYList = np.zeros(nBlobs) + border / 15
     thetaList = np.zeros(nBlobs)
     offsetLost = np.zeros(nBlobs)
 
@@ -52,7 +50,7 @@ def guess_gau2D_params(x, y, z, nBlobs, maskIndex=None):
         x1indx, y1indx = np.unravel_index(np.argmax(z, axis=None), z.shape)
         x1ini, y1ini = x[x1indx, y1indx], y[x1indx, y1indx]
         amp1 = np.max(z)
-        mask1 = np.zeros((len(x) , len(y) ))
+        mask1 = np.zeros((len(x), len(y)))
         mask1[-maskIndex + x1indx:maskIndex + x1indx, -maskIndex + y1indx:maskIndex + y1indx] = 1
         z = np.ma.masked_array(z, mask=mask1)
 
@@ -63,29 +61,57 @@ def guess_gau2D_params(x, y, z, nBlobs, maskIndex=None):
 
 
 class Gaussian2DResult(FitResult):
-    def __init__(self, lmfit_result: lmfit.model.ModelResult, coord, data):
+    def __init__(self, lmfit_result: lmfit.model.ModelResult, coord, data, nBlobs):
         self.lmfit_result = lmfit_result
         self.coord = coord
         self.data = data
         self.params = lmfit_result.params
+        self.nBlobs = nBlobs
         for p in self.params:
             self.__setattr__(p, self.params[p].value)
         self.sigma_g = np.sqrt(self.sigmaX1 ** 2 + self.sigmaY1 ** 2)
         self.sigma_e = np.sqrt(self.sigmaX2 ** 2 + self.sigmaY2 ** 2)
-        self.ImOverSigma = np.sqrt((self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) / self.sigma_g
+        self.ImOverSigma = np.sqrt(
+            (self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) / self.sigma_g
 
-    def plot(self, **figArgs):
+        #reorder the fit result in order of amp
+        resultParams = lmfit_result.params
+        ampResults = np.array([resultParams[f"amp{i + 1}"] for i in range(self.nBlobs)])
+        x0Results = np.array([resultParams[f"x{i + 1}"] for i in range(self.nBlobs)])
+        y0Results = np.array([resultParams[f"y{i + 1}"] for i in range(self.nBlobs)])
+        sigmaXResults = np.array([resultParams[f"sigmaX{i + 1}"] for i in range(self.nBlobs)])
+        sigmaYResults = np.array([resultParams[f"sigmaY{i + 1}"] for i in range(self.nBlobs)])
+
+        stateOrder = np.argsort(ampResults)[::-1]
+        self.state_x_list = x0Results[stateOrder]
+        self.state_y_list = y0Results[stateOrder]
+        state_sigmaX_list = sigmaXResults[stateOrder]
+        state_sigmaY_list = sigmaYResults[stateOrder]
+        state_sigma_list = np.sqrt(state_sigmaX_list ** 2 + state_sigmaY_list ** 2)
+
+        self.state_xy_list = np.array([self.state_x_list, self.state_y_list]).T.flatten()
+        self.state_location_list = np.append(self.state_xy_list, state_sigma_list)
+
+
+    def plot(self, ax=None, **figArgs):
         x, y = self.coord
         z = gaussian_filter(self.data, [2, 2])
-        fig, ax = plt.subplots(1, 1)
-        ax.pcolormesh(x, y, z)
+        if ax is None:
+            fig, ax = plt.subplots(1, 1)
+        ax.set_title("state fitting")
+        ax.pcolormesh(x, y, z, shading="auto")
         ax.set_aspect(1)
-        ax.contour(x, y, self.lmfit_result.best_fit,  colors='w')
+        ax.contour(x, y, self.lmfit_result.best_fit, colors='w')
+
+        ax.scatter(self.state_x_list, self.state_y_list, c="r", s=0.7)
+        for i, txt in enumerate(["g", "e", "f"][:self.nBlobs]):
+            ax.annotate(txt, (self.state_x_list[i], self.state_y_list[i]))
 
     def print(self):
         for p in self.params:
             print(f"{p}: {np.round(self.params[p].value, 4)}")
-
+        dec = int(max(-np.log10(np.min(np.abs(self.state_location_list))), 0))
+        print(f"stateLocation: {np.around(self.state_location_list, dec)}")
 
 
 class Gaussian2D_Base(Fit):
@@ -93,6 +119,7 @@ class Gaussian2D_Base(Fit):
                  data: np.ndarray, nBlobs=2, maskIndex=None):
         """ fit multiple 2D gaussian blobs
         :param nBlobs:  number of gussian blobs
+        :param maskIndex: guessed size of each blob
         """
         self.coordinates = coordinates
         self.data = data
@@ -103,7 +130,7 @@ class Gaussian2D_Base(Fit):
     def guess(self, coordinates, data):
         border = np.max(np.abs(coordinates))
         if self.maskIndex is None:
-            self.maskIndex = int(border // 200)
+            self.maskIndex =  int(len(coordinates[0]) // 5)
 
         (x, y) = coordinates
         z = gaussian_filter(data, [2, 2])
@@ -134,31 +161,7 @@ class Gaussian2D_Base(Fit):
 
     def run(self, *args: Any, **kwargs: Any) -> Gaussian2DResult:
         lmfit_result = self.analyze(self.coordinates, self.data, *args, **kwargs)
-        return Gaussian2DResult(lmfit_result, self.coordinates, self.data)
-
-        #todo : reorder the fit result in order of amp
-        gIndex = np.argmax(np.array([amp1, amp2, amp3]))
-        eIndex = np.argmax(
-            np.ma.masked_values(np.array([amp1, amp2, amp3]), np.array([amp1, amp2, amp3])[gIndex]))
-        fIndex = np.argmin(np.array([amp1, amp2, amp3]))
-        gef_order = [gIndex, eIndex, fIndex]
-        # if y1 < y2:
-        #     [x1, y1, amp1, sigma1x, sigma1y, x2, y2, amp2, sigma2x, sigma2y] = [x2, y2, amp2, sigma2x, sigma2y, x1, y1, amp1, sigma1x, sigma1y]
-        gef_xy = np.array([[x1, y1], [x2, y2], [x3, y3]])[gef_order]
-        gef_sigma = np.array([[sigma1x, sigma1y], [sigma2x, sigma2y], [sigma3x, sigma3y]])[
-            gef_order]
-        gef_amp = np.array([amp1, amp2, amp3])[gef_order]
-
-
-        # x, y = self.coord
-        # z = gaussian_filter(self.data, [2, 2])
-        # fig, ax = plt.subplots(1, 1)
-        # ax.pcolormesh(x, y, z)
-        # ax.set_aspect(1)
-        # ax.contour(x, y, self.lmfit_result.best_fit,  colors='w')
-        # ax.scatter(*gef_xy.transpose(), c="r", s=0.7)
-        # for i, txt in enumerate(["g", "e", "f"]):
-        #     ax.annotate(txt, (gef_xy[i][0], gef_xy[i][1]))
+        return Gaussian2DResult(lmfit_result, self.coordinates, self.data, self.nBlobs)
 
 
 class Gaussian2D_2Blob(Gaussian2D_Base):
@@ -191,6 +194,7 @@ class Gaussian2D_3Blob(Gaussian2D_Base):
             twoD_gaussian_func(coordinates, amp2, x2, y2, sigmaX2, sigmaY2, theta2, offset2) + \
             twoD_gaussian_func(coordinates, amp3, x3, y3, sigmaX3, sigmaY3, theta3, offset3)
         return z
+
 
 if __name__ == '__main__':
     pass
