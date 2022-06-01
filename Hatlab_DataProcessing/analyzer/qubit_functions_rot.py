@@ -69,7 +69,7 @@ class PiPulseTuneUp(Analysis):
 
 class T1Decay(Analysis):
     @staticmethod
-    def analyze(x_data, iq_data, rot_result={}, dry=False, params={}, **fit_kwargs):
+    def analyze(x_data, iq_data, rot_result={}, dry=False, params={}, **fit_kwargs) -> QubitBasicResult_rot:
         # rotate data
         rot_angle = rot_result.get("rot_angle", "find")
         rotIQ = RotateData(x_data, iq_data)

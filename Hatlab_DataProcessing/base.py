@@ -77,7 +77,7 @@ class Analysis(object):
         """Needs to be implemented by each inheriting class."""
         raise NotImplementedError
 
-    def run(self, *args: Any, **kwargs: Any) -> AnalysisResult:
+    def run(self, *args: Any, **kwargs: Any):
         return self.analyze(self.coordinates, self.data, *args, **kwargs)
 
 

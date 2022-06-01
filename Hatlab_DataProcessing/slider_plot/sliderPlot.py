@@ -6,7 +6,7 @@ Created on Thu Apr 25 22:04:54 2019
 """
 import itertools
 
-from typing import Union, List, Callable
+from typing import Union, List, Callable, Tuple, Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
@@ -114,6 +114,103 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
     for i in range(nAxes):
         sld_list[i].on_changed(update)
     return sld_list
+
+
+
+def sliderPlot(data_x: Union[List, np.ndarray], data_y: Union[List, np.ndarray],
+               axes_dict: dict, callback: Callable = None, titleArray: Union[List[str], np.ndarray] = None,
+               plotArgList:List[Union[Tuple,List]]=None, plotKwargList:List[Dict]=None) -> List[Slider]:
+    """Create a slider line plot widget. The caller needs to maintain a reference to the returned Slider objects
+        to keep the widget activate
+
+    :param data_x: x data for line plot, should have the shape of (len(axis0), len(axis1), ..., len(axisN), (nLines), nPts)
+    :param data_y: y data for line plot, should have the shape of (len(axis0), len(axis1), ..., len(axisN), (nLines), nPts)
+    :param axes_dict: a dictionary that contains the data of each axis
+    :param titleArray: title for each plot, should have shape of (len(axis0), len(axis1), ..., len(axisN))
+    :param plotArgList: positional arguments for each line, should have the shape of (len(axis0), len(axis1), ..., len(axisN), nLines).
+                        e.g. [["."], ["."], ["-"]]
+    :param plotArgList: keyword arguments for each line, should have the shape of (len(axis0), len(axis1), ..., len(axisN), nLines).
+                        e.g. [{"label":"data_i"},{"label":"data_q"}, {"label":"fit", "linewidth":3}]
+
+    :return: list of Slider objects.
+    """
+    nAxes = len(axes_dict)
+    axesDim = list(map(len, axes_dict.values()))
+    if titleArray is None:
+        titleArray = np.zeros(axesDim, dtype="str")
+
+    dataX0 = _indexData(data_x, np.zeros(nAxes))
+    dataY0 = _indexData(data_y, np.zeros(nAxes))
+    title0 = _indexData(titleArray, np.zeros(nAxes))
+
+    # check if there is only one line for each plot. i.e. if the data shape is (len(axis0), ..., len(axisN), (nLines), nPts)
+    # or (len(axis0), ..., len(axisN), nPts)
+    single_line = False
+    try:
+        len(dataX0[0])
+        nLines = len(dataX0)
+    except TypeError:
+        nLines = 1
+        single_line = True
+        dataX0 = [dataX0]
+        dataY0 = [dataY0]
+
+    if plotArgList is None:
+        plotArgList = [()] * nLines
+    if plotKwargList is None:
+        plotKwargList = [{}] * nLines
+
+    # initial figure
+    fig = plt.figure(figsize=(7, 7 + nAxes * 0.3))
+    callback_text = plt.figtext(0.15, 0.01, "", size="large", figure=fig)
+    plt.subplots_adjust(bottom=nAxes * 0.3 / (7 + nAxes * 0.3) + 0.1)
+    plt.subplot(1, 1, 1)
+    plt.title(title0)
+    for i in range(nLines):
+        plt.plot(dataX0[i], dataY0[i], *(plotArgList[i]), **(plotKwargList[i]))
+    plt.legend()
+    ax = plt.gca()
+    # generate sliders
+    axcolor = 'lightgoldenrodyellow'
+    sld_list = []
+    for idx, (k, v) in enumerate(axes_dict.items()):
+        ax_ = plt.axes([0.2, (nAxes - idx) * 0.04, 0.6, 0.03], facecolor=axcolor)
+        sld_ = Slider(ax_, k, 0, len(v) - 1, valinit=0, valstep=1)
+        sld_list.append(sld_)
+
+    # update funtion
+    def update(val):
+        sel_dim = []
+        ax_val_list = []
+        for i in range(nAxes):
+            ax_name = sld_list[i].label.get_text()
+            ax_idx = int(sld_list[i].val)
+            sel_dim.append(int(ax_idx))
+            ax_val = np.round(axes_dict[ax_name][ax_idx], 5)
+            ax_val_list.append(ax_val)
+            sld_list[i].valtext.set_text(str(ax_val))
+
+        newX = _indexData(data_x, sel_dim)
+        newY = _indexData(data_y, sel_dim)
+        newTitle = _indexData(titleArray, sel_dim)
+        if single_line:
+            newX = [newX]
+            newY = [newY]
+        ax.cla()
+        ax.set_title(newTitle)
+        for i in range(nLines):
+            ax.plot(newX[i], newY[i], *(plotArgList[i]), **(plotKwargList[i]))
+        ax.legend()
+        # print callback result on top of figure
+        if callback is not None:
+            result = callback(newX, newY, *ax_val_list)
+            callback_text.set_text(callback.__name__ + f": {result}")
+        fig.canvas.draw_idle()
+
+    for i in range(nAxes):
+        sld_list[i].on_changed(update)
+    return sld_list
+
 
 
 def sliderPColorMesh(xdata, ydata, zdata,
