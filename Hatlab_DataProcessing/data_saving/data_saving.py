@@ -1,13 +1,16 @@
-from plottr.data import DataDict, MeshgridDataDict
-from plottr.data.datadict_storage import datadict_to_hdf5, DDH5Writer, DATAFILEXT
 from typing import Any, Union, Optional, Dict, Type, Collection
 from pathlib import Path
+import time
+from contextlib import nullcontext
+
 import yaml
 import numpy as np
-import time
+
+from plottr.data import DataDict, MeshgridDataDict
+from plottr.data.datadict_storage import datadict_to_hdf5, DDH5Writer, DATAFILEXT
 
 
-class hatDDH5Writer(DDH5Writer):
+class HatDDH5Writer(DDH5Writer):
     """Context manager for writing data to DDH5.
     Based on the DDH5Writer from plottr, with re-implemented data_folder method, which allows user to specify the name
     of the folder, instead of using a generated ID.
@@ -41,7 +44,6 @@ class hatDDH5Writer(DDH5Writer):
 
     def save_config(self, cfg:Dict):
         datafolder = str(self.filepath.parent)
-        print(datafolder)
         with open(str(datafolder) + f"\\\\{str(self.filename)}_cfg.yaml", 'w') as file:
             yaml.dump(cfg, file)
 
@@ -54,15 +56,23 @@ class hatDDH5Writer(DDH5Writer):
         data_file_path = Path(self.basedir, self.data_folder(), str(self.filename)+f".{DATAFILEXT}")
         appendix = ''
         idx = 2
-        print(data_file_path, "1")
         while data_file_path.exists():
             appendix = f'-{idx}'
             data_file_path = Path(self.basedir,
                                     self.data_folder(),  str(self.filename)+appendix+f".{DATAFILEXT}")
             idx += 1
-            print(data_file_path, "2")
         self.filename = Path(str(self.filename)+appendix)
         return data_file_path
+
+class DummyWriter(nullcontext):
+    def __init__(self):
+        super().__init__()
+    def save_config(self, *args, **kwargs):
+        pass
+    def add_data(self, *args, **kwargs):
+        pass
+
+
 
 if __name__=="__main__":
 
@@ -85,7 +95,7 @@ if __name__=="__main__":
         }
     }
     dd = DataDict(**data)
-    ddw = hatDDH5Writer(dd, r"L:\Data\SNAIL_Pump_Limitation\test\\", foldername=None, filename="data11")
+    ddw = HatDDH5Writer(dd, r"L:\Data\SNAIL_Pump_Limitation\test\\", foldername=None, filename="data11")
     # ddw = DDH5Writer(dd, r"L:\Data\SNAIL_Pump_Limitation\test\\", filename="data11", name="testnam")
     with ddw as d:
         for i in range(5):
@@ -95,7 +105,7 @@ if __name__=="__main__":
                     x=xlist[i],
                     y=ylist[j]
                 )
-        d.save_config({"a":1})
+        d.save_config({"a":2})
 
 
     # inner_sweeps = DataDict(amp={"unit": "DAC", "values": [1,2,3]})
