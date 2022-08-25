@@ -10,7 +10,6 @@ import warnings
 import time
 
 import matplotlib.pyplot as plt
-import lmfit
 import numpy as np
 import h5py
 
@@ -160,7 +159,6 @@ class PostSelectionData_ge(PostSelectionData_Base):
     def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
                  geLocation: List[float] = None, plotGauFitting=True,
                  fitGuess: dict = {}, stateMask: int = None, histBins=201, histRange=None):
-        super().__init__(data_I, data_Q, selPattern, histRange)
         """ A post selection data class that assumes a qubit has two possible states
         :param data_I:  I data
         :param data_Q:  Q data
@@ -171,7 +169,7 @@ class PostSelectionData_ge(PostSelectionData_Base):
         :param fitGuess: guess parameters for gaussian fitting. should be dict of lmfit Parameters. This could be
                          useful when the blobs are slowly rotating.
         """
-
+        super().__init__(data_I, data_Q, selPattern, histRange)
         # fit for g, e gaussian if g/e state location is not provided
         if geLocation is None:
             self.stateFitResult = self.auto_fit(2, fitGuess, histBins, stateMask, plotGauFitting)
@@ -300,7 +298,6 @@ class PostSelectionData_gef(PostSelectionData_Base):
     def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
                  gefLocation: List[float] = None, plotGauFitting=True,
                  fitGuess=None, stateMask: int = None, histBins=201, histRange=None):
-        super().__init__(data_I, data_Q, selPattern, histRange)
         """ A post selection data class that assumes a qubit has three possible states
         :param data_I:  I data
         :param data_Q:  Q data
@@ -315,6 +312,7 @@ class PostSelectionData_gef(PostSelectionData_Base):
         :param histBins: number of bins for histogram
         :param histRange: range of histogram
         """
+        super().__init__(data_I, data_Q, selPattern, histRange)
         # fit for g, e, f gaussian if g/e/f state location is not provided
         if gefLocation == None:
             self.stateFitResult = self.auto_fit(3, fitGuess, histBins, stateMask, plotGauFitting)
@@ -508,7 +506,8 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
                          fitGuess={}, stateMask: int = None, histBins=201, histRange=None,
                          selCircleSize=1, xData:dict=None):
     """simple post selection function that selects data points where the qubit is in g
-        state in the first MSMT of each two MSMTs
+        state in the first MSMT of each two MSMTs.
+
         :param Idata: I data, 2d array, shape should be (nReps, nMSMTs)
         :param Qdata: Q data, 2d array, shape should be (nReps, nMSMTs)
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]

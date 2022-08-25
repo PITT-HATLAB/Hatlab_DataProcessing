@@ -11,7 +11,7 @@ from plottr.data.datadict_storage import datadict_to_hdf5, DDH5Writer, DATAFILEX
 
 
 class HatDDH5Writer(DDH5Writer):
-    """Context manager for writing data to DDH5.
+    """Context manager for writing DataDict to DDH5.
     Based on the DDH5Writer from plottr, with re-implemented data_folder method, which allows user to specify the name
     of the folder, instead of using a generated ID.
 
@@ -75,7 +75,7 @@ class DummyWriter(nullcontext):
 
 
 if __name__=="__main__":
-
+    # test data saving with fake data
     a = np.zeros((10, 50))
     for i in range(len(a)):
         a[i] = np.linspace(i, i + 10, 50)
@@ -96,7 +96,6 @@ if __name__=="__main__":
     }
     dd = DataDict(**data)
     ddw = HatDDH5Writer(dd, r"L:\Data\SNAIL_Pump_Limitation\test\\", foldername=None, filename="data11")
-    # ddw = DDH5Writer(dd, r"L:\Data\SNAIL_Pump_Limitation\test\\", filename="data11", name="testnam")
     with ddw as d:
         for i in range(5):
             for j in range(5):
@@ -107,14 +106,4 @@ if __name__=="__main__":
                 )
         d.save_config({"a":2})
 
-
-    # inner_sweeps = DataDict(amp={"unit": "DAC", "values": [1,2,3]})
-    # outer_sweeps = DataDict(freq={"unit": "MHz", "values": [4,5,6]})
-    # qdd = QickDataDict([0,1], inner_sweeps, outer_sweeps=outer_sweeps)
-    # qddw = hatDDH5Writer(qdd, r"L:\Data\SNAIL_Pump_Limitation\sweepSNAILPumpAmpFreq\sunHarmonic\\",
-    #                     foldername="08162022", filename=f"Q3_test1")
-    # with qddw as d:
-    #     for i in range(10):
-    #         for j in range(5):
-    #             d.add_data(inner_sweeps=0, avg_i=0, avg_q=0, freq=1)
 

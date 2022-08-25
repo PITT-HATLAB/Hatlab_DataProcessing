@@ -56,6 +56,11 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
     :param hist2dArgs:
     :return: list of Slider objects.
     """
+    try: # incase it's a datadict
+        axes_dict.to_dict()
+    except AttributeError:
+        pass
+
     hist2dArgs["bins"] = hist2dArgs.get("bins", 101)
     maxVal = np.max(np.abs([flatten_ragged_list(data_I), flatten_ragged_list(data_Q)]))
     hist2dArgs["range"] = hist2dArgs.get("range", [[-maxVal, maxVal], [-maxVal, maxVal]])
@@ -134,6 +139,11 @@ def sliderPlot(data_x: Union[List, np.ndarray], data_y: Union[List, np.ndarray],
 
     :return: list of Slider objects.
     """
+    try: # incase it's a datadict
+        axes_dict.to_dict()
+    except AttributeError:
+        pass
+
     nAxes = len(axes_dict)
     axesDim = list(map(len, axes_dict.values()))
     if titleArray is None:
@@ -215,6 +225,12 @@ def sliderPlot(data_x: Union[List, np.ndarray], data_y: Union[List, np.ndarray],
 
 def sliderPColorMesh(xdata, ydata, zdata,
                      axes_dict: dict, callback: Callable = None, **pColorMeshArgs):
+
+    try: # incase it's a datadict
+        axes_dict.to_dict()
+    except AttributeError:
+        pass
+
     # raise NotImplementedError("this function is still under developing")
     pColorMeshArgs["shading"] = pColorMeshArgs.get("shading", "auto")
     pColorMeshArgs["vmin"] = pColorMeshArgs.get("vmin", np.min(zdata))
@@ -270,6 +286,10 @@ def sliderBarPlot(data, axes_dict: dict, bar_labels = None, callback: Callable =
     if bar_labels==None:
         bar_labels = ["ZI", "XI", "YI", "IZ", "IX", "IY", "ZZ", "ZX", "ZY", "XZ", "XX", "XY", "YZ", "YX", "YY"]
 
+    try: # incase it's a datadict
+        axes_dict.to_dict()
+    except AttributeError:
+        pass
 
     # initial figure
     nAxes = len(axes_dict)
@@ -330,6 +350,11 @@ def sliderBarPlot(data, axes_dict: dict, bar_labels = None, callback: Callable =
 
 def AnimatePColorMesh(xdata, ydata, zdata,
                          axes_dict: dict, fileName="", **pColorMeshArgs):
+    try: # incase it's a datadict
+        axes_dict.to_dict()
+    except AttributeError:
+        pass
+    
     if len(axes_dict.keys()) > 1:
         raise NotImplementedError("this function (axis > 1) is still under developing")
     pColorMeshArgs["shading"] = pColorMeshArgs.get("shading", "auto")
