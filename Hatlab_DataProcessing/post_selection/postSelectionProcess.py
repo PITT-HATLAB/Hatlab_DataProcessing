@@ -12,6 +12,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
+from tqdm import tqdm
 
 
 
@@ -44,7 +45,7 @@ class PostSelectionData_Base():
         msmt_per_sel = len(selPattern)
         if pts_per_exp % msmt_per_sel != 0:
             raise ValueError(
-                f"selPattern is not valid. the length of selPattern {len(selPattern)} is no a factor of "
+                f"selPattern is not valid. the length of selPattern {len(selPattern)} is not a factor of "
                 f"points per experiment {pts_per_exp}")
         n_sweep = int(np.round(pts_per_exp // msmt_per_sel))  # e.g. len(xData)
 
@@ -96,10 +97,14 @@ class PostSelectionData_Base():
 
         return mask
 
-    def sel_data(self, mask, plot=True, plot_ax=None):
+    def sel_data(self, mask, plot=True, plot_ax=None, progress=False):
         self.I_vld = []
         self.Q_vld = []
-        for i in range(self.I_exp.shape[1]):
+        if progress:
+            rs1  = tqdm(range(self.I_exp.shape[1]), desc="selecting data")
+        else:
+            rs1 = range(self.I_exp.shape[1])
+        for i in rs1:
             for j in range(self.I_exp.shape[2]):
                 self.I_vld.append(self.I_exp[:, i, j][mask[:, i]])
                 self.Q_vld.append(self.Q_exp[:, i, j][mask[:, i]])
@@ -152,7 +157,7 @@ class PostSelectionData_Base():
 
         self.resultSld = sliderHist2d(self.I_vld, self.Q_vld,
                                       axes_dict=xData,
-                                      range=self.histRange)
+                                      range=self.histRange, bins=self.histBins)
 
 
 class PostSelectionData_ge(PostSelectionData_Base):
@@ -176,6 +181,7 @@ class PostSelectionData_ge(PostSelectionData_Base):
             geLocation = self.stateFitResult.state_location_list
         self.geLocation = geLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.g_r, self.e_r = self.geLocation
+        self.histBins = histBins
 
     def ge_split_line(self, x):
         return self.state_split_line(self.g_x, self.g_y, self.e_x, self.e_y, x)
@@ -248,9 +254,13 @@ class PostSelectionData_ge(PostSelectionData_Base):
             ax.set_aspect(1)
         return mask
 
-    def cal_g_pct(self, plot=False, plot_ax=None):
+    def cal_g_pct(self, plot=False, plot_ax=None, progress=False):
+        if progress:
+            ii_ = tqdm(range(len(self.I_vld)), desc="calculating g_pct")
+        else:
+            ii_ = range(len(self.I_vld))
         g_pct_list = []
-        for i in range(len(self.I_vld)):
+        for i in ii_:
             I_v = self.I_vld[i]
             Q_v = self.Q_vld[i]
             n_pts = float(len(I_v))
@@ -262,7 +272,8 @@ class PostSelectionData_ge(PostSelectionData_Base):
                 g_pct_list.append(len(I_v[mask]) / n_pts)
             except ZeroDivisionError:
                 warnings.warn(
-                    "! no valid point, this is probably because the gaussian fitting, please double check system and fitting function")
+                    "! no valid point, this is probably because of wrong gaussian fitting, "
+                    "please double check the system and the fitting function")
                 g_pct_list.append(1)
         if plot:
             if plot_ax is None:
@@ -504,7 +515,7 @@ class PostSelectionData_gef(PostSelectionData_Base):
 
 def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
                          fitGuess={}, stateMask: int = None, histBins=201, histRange=None,
-                         selCircleSize=1, xData:dict=None):
+                         selCircleSize=1, xData:dict=None, progress=False):
     """simple post selection function that selects data points where the qubit is in g
         state in the first MSMT of each two MSMTs.
 
@@ -532,15 +543,15 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
         fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(18,5))
         selData.stateFitResult.plot(ax1)
         selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=plot, plot_ax=ax2)
-        I_vld, Q_vld = selData.sel_data(selMask, plot=False)
-        g_pct = selData.cal_g_pct(plot=plot, plot_ax=ax3)
+        I_vld, Q_vld = selData.sel_data(selMask, plot=False, progress=progress)
+        g_pct = selData.cal_g_pct(plot=plot, plot_ax=ax3, progress=progress)
         selData.sliderPlotSelectedData(xData)
 
 
     else:
         selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=False)
-        I_vld, Q_vld = selData.sel_data(selMask, plot=False)
-        g_pct = selData.cal_g_pct(plot=False)
+        I_vld, Q_vld = selData.sel_data(selMask, plot=False, progress=progress)
+        g_pct = selData.cal_g_pct(plot=False, progress=progress)
 
 
     return g_pct, I_vld, Q_vld, selData
