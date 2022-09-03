@@ -1,7 +1,6 @@
 from typing import Any, Union, Optional, Dict, Type, Collection
 from pathlib import Path
 import time
-from contextlib import nullcontext
 
 import yaml
 import numpy as np
@@ -42,7 +41,7 @@ class HatDDH5Writer(DDH5Writer):
             path = Path(self.foldername)
         return path
 
-    def save_config(self, cfg:Dict):
+    def save_config(self, cfg: Dict):
         datafolder = str(self.filepath.parent)
         with open(str(datafolder) + f"\\\\{str(self.filename)}_cfg.yaml", 'w') as file:
             yaml.dump(cfg, file)
@@ -53,28 +52,39 @@ class HatDDH5Writer(DDH5Writer):
 
         :returns: The filepath of the data file.
         """
-        data_file_path = Path(self.basedir, self.data_folder(), str(self.filename)+f".{DATAFILEXT}")
+        data_file_path = Path(self.basedir, self.data_folder(), str(self.filename) + f".{DATAFILEXT}")
         appendix = ''
         idx = 2
         while data_file_path.exists():
             appendix = f'-{idx}'
             data_file_path = Path(self.basedir,
-                                    self.data_folder(),  str(self.filename)+appendix+f".{DATAFILEXT}")
+                                  self.data_folder(), str(self.filename) + appendix + f".{DATAFILEXT}")
             idx += 1
-        self.filename = Path(str(self.filename)+appendix)
+        self.filename = Path(str(self.filename) + appendix)
         return data_file_path
 
-class DummyWriter(nullcontext):
+    def update_meta(self):
+        pass
+
+
+class DummyWriter():
     def __init__(self):
-        super().__init__()
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *excinfo):
+        pass
+
     def save_config(self, *args, **kwargs):
         pass
+
     def add_data(self, *args, **kwargs):
         pass
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     # test data saving with fake data
     a = np.zeros((10, 50))
     for i in range(len(a)):
@@ -104,6 +114,4 @@ if __name__=="__main__":
                     x=xlist[i],
                     y=ylist[j]
                 )
-        d.save_config({"a":2})
-
-
+        d.save_config({"a": 2})
