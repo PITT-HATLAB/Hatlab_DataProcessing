@@ -155,7 +155,11 @@ class PostSelectionData_Base():
         if xData is None:
             xData = {"exp": np.arange(len(self.I_vld))}
 
-        self.resultSld = sliderHist2d(self.I_vld, self.Q_vld,
+        x_shape = list(map(len, xData.values()))
+        I_vld = np.array(self.I_vld, dtype=object).reshape(*x_shape)
+        Q_vld = np.array(self.Q_vld, dtype=object).reshape(*x_shape)
+
+        self.resultSld = sliderHist2d(I_vld, Q_vld,
                                       axes_dict=xData,
                                       range=self.histRange, bins=self.histBins)
 
@@ -513,14 +517,25 @@ class PostSelectionData_gef(PostSelectionData_Base):
         return stateForEachMsmt
 
 
+def flatten_sweep_axes(data):
+    """
+    flatten an abitrary nd array data into a 2d array (to be used in post selection funcitons, where the data shape must
+        be (nReps, nMSMTs) )
+    :param data: nd array data, the first axes must be nReps, and the rest axes are sweep parameters
+    :return:
+    """
+    original_shape = data.shape
+    return original_shape, np.array(data).reshape(original_shape[0], -1)
+
+
 def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
                          fitGuess={}, stateMask: int = None, histBins=201, histRange=None,
                          selCircleSize=1, xData:dict=None, progress=False):
     """simple post selection function that selects data points where the qubit is in g
         state in the first MSMT of each two MSMTs.
 
-        :param Idata: I data, 2d array, shape should be (nReps, nMSMTs)
-        :param Qdata: Q data, 2d array, shape should be (nReps, nMSMTs)
+        :param Idata: I data, nd array, first axes be nReps
+        :param Qdata: Q data, nd array, first axes be nReps
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
         :param plot: plot fitting and selection data
         :param fitGuess:  guess parameter for gau blob fitting
@@ -535,6 +550,9 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
         :returns: averaged g state percent of each experiment MSMT
 
     """
+    original_shape, Idata = flatten_sweep_axes(Idata) # todo: this should be moved to the PostSelectionData classes
+    _, Qdata = flatten_sweep_axes(Qdata)
+
     selData = PostSelectionData_ge(Idata, Qdata, [1, 0], geLocation, False,
                                    fitGuess, stateMask, histBins, histRange)
 
@@ -553,6 +571,11 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
         I_vld, Q_vld = selData.sel_data(selMask, plot=False, progress=progress)
         g_pct = selData.cal_g_pct(plot=False, progress=progress)
 
+    # reshape results back to the shape of the input sweep axes
+    # todo: these should be moved to the PostSelectionData classes
+    g_pct = g_pct.reshape(*original_shape[1:])
+    I_vld = np.array(I_vld, dtype=object).reshape(*original_shape[1:])
+    Q_vld = np.array(Q_vld, dtype=object).reshape(*original_shape[1:])
 
     return g_pct, I_vld, Q_vld, selData
 
