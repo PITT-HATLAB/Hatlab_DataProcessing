@@ -4,9 +4,10 @@ import time
 
 import yaml
 import numpy as np
+from tqdm import tqdm
 
 from plottr.data import DataDict, MeshgridDataDict
-from plottr.data.datadict_storage import datadict_to_hdf5, DDH5Writer, DATAFILEXT
+from plottr.data.datadict_storage import _data_file_path, DDH5Writer, DATAFILEXT, is_meta_key, deh5ify, FileOpener
 
 
 class HatDDH5Writer(DDH5Writer):
@@ -82,6 +83,102 @@ class DummyWriter():
 
     def add_data(self, *args, **kwargs):
         pass
+
+
+def datadict_from_hdf5(path: str,
+                       groupname: str = 'data',
+                       startidx: Union[int, None] = None,
+                       stopidx: Union[int, None] = None,
+                       structure_only: bool = False,
+                       ignore_unequal_lengths: bool = True,
+                       progress=False,
+                       data_only=False) -> DataDict:
+    """Load a DataDict from file. Copied from plottr.data.datadict_storage.
+        Added extra features to show loading progress and load data only.
+
+    :param path: Full filepath without the file extension.
+    :param groupname: Name of hdf5 group.
+    :param startidx: Start row.
+    :param stopidx: End row + 1.
+    :param structure_only: If `True`, don't load the data values.
+    :param ignore_unequal_lengths: If `True`, don't fail when the rows have
+        unequal length; will return the longest consistent DataDict possible.
+    :param progress:  when true, show loading progress.
+    :param data_only: when true, only data with metadata __isdata__==True
+        will be loaded
+
+    :return: Validated DataDict.
+    """
+    filepath = _data_file_path(path)
+    if not filepath.exists():
+        raise ValueError("Specified file does not exist.")
+
+    if startidx is None:
+        startidx = 0
+
+    res = {}
+    with FileOpener(filepath, 'r') as f:
+        if groupname not in f:
+            raise ValueError('Group does not exist.')
+
+        grp = f[groupname]
+        keys = list(grp.keys())
+        lens = [grp[k].shape[0] for k in keys]
+
+        if len(set(lens)) > 1:
+            if not ignore_unequal_lengths:
+                raise RuntimeError('Unequal lengths in the datasets.')
+
+            if stopidx is None or stopidx > min(lens):
+                stopidx = min(lens)
+        else:
+            if stopidx is None or stopidx > lens[0]:
+                stopidx = lens[0]
+
+        for attr in grp.attrs:
+            if is_meta_key(attr):
+                res[attr] = deh5ify(grp.attrs[attr])
+
+        if progress:
+            tqdmk = tqdm(keys, desc="loading data")
+        else:
+            tqdmk = keys
+        for k in tqdmk:
+            ds = grp[k]
+            entry: Dict[str, Union[Collection[Any], np.ndarray]] = dict(values=np.array([]), )
+
+            if data_only and (not ds.attrs.get("__isdata__")):
+                # load experiment data only, ignore axes value (will get axis values from metadata)
+                if 'unit' in ds.attrs:# keep only units of axes
+                    entry["unit"] = deh5ify(ds.attrs['unit'])
+                res[k] = entry
+                continue
+
+            if 'axes' in ds.attrs:
+                entry['axes'] = deh5ify(ds.attrs['axes']).tolist()
+            else:
+                entry['axes'] = []
+
+            if 'unit' in ds.attrs:
+                entry['unit'] = deh5ify(ds.attrs['unit'])
+
+            if not structure_only:
+                entry['values'] = ds[startidx:stopidx]
+
+            entry['__shape__'] = ds[:].shape
+
+            # and now the meta data
+            for attr in ds.attrs:
+                if is_meta_key(attr):
+                    _val = deh5ify(ds.attrs[attr])
+                    entry[attr] = deh5ify(ds.attrs[attr])
+
+            res[k] = entry
+
+    dd = DataDict(**res)
+    if not data_only:
+        dd.validate()
+    return dd
 
 
 if __name__ == "__main__":
