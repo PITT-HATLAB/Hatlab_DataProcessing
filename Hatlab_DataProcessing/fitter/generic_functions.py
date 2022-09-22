@@ -74,6 +74,27 @@ class ExponentialDecayWithCosine(Fit):
         return dict(A=A, f=f, phi=phi, tau=tau, of=of)
 
 
+class ExponentialDecayWithCosineBeating(Fit):
+    @staticmethod
+    def model(coordinates, A, f1, phi1, B, f2, phi2, tau, of) -> np.ndarray:
+        """ A * cos(2 pi f x + phi) * exp (-x/tau) + of"""
+        return (A * np.cos(f1 * np.pi * 2 * coordinates + phi1) + B * np.cos(f2 * np.pi * 2 * coordinates + phi2))* np.exp(-coordinates / tau) + of
+
+    @staticmethod
+    def guess(coordinates, data):
+        of = np.mean(data)
+        A = (np.max(data) - np.min(data)) / 2.
+        B = (np.max(data) - np.min(data)) / 2.
+        fft_val = np.fft.rfft(data)[1:]
+        fft_frq = np.fft.rfftfreq(data.size, np.mean(coordinates[1:] - coordinates[:-1]))[1:]
+        idx = np.argmax(np.abs(fft_val))
+        f = fft_frq[idx]
+        phi = np.angle(fft_val[idx])
+        tau_ = (1 / 4.0) * (coordinates[-1] - coordinates[0])
+        tau = lmfit.Parameter("tau", value=tau_, min=0.0001)
+        return dict(A=A, B=B, f1=f, phi1=phi, f2=f, phi2=phi, tau=tau, of=of)
+
+
 class ExponentialDecayWithCosineSquare(Fit):
     @staticmethod
     def model(coordinates, A, f, phi, tau, of) -> np.ndarray:
