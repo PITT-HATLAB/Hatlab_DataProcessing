@@ -43,6 +43,8 @@ class QubitBasicResult_rot(AnalysisResult):
         if (g_val != None) and (e_val != None):
             _hline(g_val, e_val)
 
+    def get_fit_value(self, param_name):
+        return self.lmfit_result.params[param_name].value
 
 class PulseSpec(Analysis):
     @staticmethod

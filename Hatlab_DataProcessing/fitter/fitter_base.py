@@ -50,3 +50,6 @@ class FitResult(AnalysisResult):
 
     def eval(self, *args: Any, **kwargs: Any):
         return self.lmfit_result.eval(*args, **kwargs)
+
+    def get_fit_value(self, param_name):
+        return self.lmfit_result.params[param_name].value

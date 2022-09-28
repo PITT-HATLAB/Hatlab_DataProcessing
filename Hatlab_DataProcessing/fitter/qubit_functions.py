@@ -24,6 +24,9 @@ class QubitBasicResult(AnalysisResult):
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
 
+    def get_fit_value(self, param_name):
+        return self.lmfit_result.params[param_name].value
+
 class PiPulseTuneUp(Fit):
     @staticmethod
     def model(coordinates, A, f, phi, of) -> np.ndarray:
