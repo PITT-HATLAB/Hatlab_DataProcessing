@@ -121,7 +121,8 @@ class PostSelectionData_Base():
             print("sel%: " + str(selNum / len(self.data_I_raw)))
 
         selNum = np.average(list(map(len, self.I_vld)))
-        print("sel%: " + str(selNum / len(self.data_I_raw)))
+        self.sel_pct = selNum / len(self.data_I_raw)
+        print("sel%: " + str(self.sel_pct))
         return self.I_vld, self.Q_vld
 
     def auto_fit(self, nBlobs=2, fitGuess={}, bins=201, stateMask=None, plotGauFitting=True):
@@ -534,8 +535,8 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
     """simple post selection function that selects data points where the qubit is in g
         state in the first MSMT of each two MSMTs.
 
-        :param Idata: I data, nd array, first axes be nReps
-        :param Qdata: Q data, nd array, first axes be nReps
+        :param Idata: I data, nd array, first axes should be nReps
+        :param Qdata: Q data, nd array, first axes should be nReps
         :param geLocation:  [g_x, g_y, e_x, e_y, g_r, e_r]
         :param plot: plot fitting and selection data
         :param fitGuess:  guess parameter for gau blob fitting
@@ -547,7 +548,7 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
         :param xData: dictionary that contains the variables that are swept in the experiment.
                         e.g : {"amp": np.linspace(0,1 101) }
 
-        :returns: averaged g state percent of each experiment MSMT
+        :returns: g_pct, I_vld, Q_vld, selData
 
     """
     original_shape, Idata = flatten_sweep_axes(Idata) # todo: this should be moved to the PostSelectionData classes
@@ -573,9 +574,11 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
 
     # reshape results back to the shape of the input sweep axes
     # todo: these should be moved to the PostSelectionData classes
-    g_pct = g_pct.reshape(*original_shape[1:])
-    I_vld = np.array(I_vld, dtype=object).reshape(*original_shape[1:])
-    Q_vld = np.array(Q_vld, dtype=object).reshape(*original_shape[1:])
+    final_shape = list((*original_shape[1:-1],
+                          int(original_shape[-1] * np.sum(selData.selPattern) / len(selData.selPattern))))
+    g_pct = g_pct.reshape(*final_shape)
+    I_vld = np.array(I_vld, dtype=object).reshape(*final_shape)
+    Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape)
 
     return g_pct, I_vld, Q_vld, selData
 

@@ -19,6 +19,23 @@ class Linear(Fit):
         return dict(k=k, b=b)
 
 
+class Lorentzian(Fit):
+    @staticmethod
+    def model(coordinates, A, x0, k, of) -> np.ndarray:
+        """$ A /(k*(x-x0)**2+1) +of $"""
+        return A / (k * (coordinates - x0) ** 2 + 1) + of
+
+    @staticmethod
+    def guess(coordinates, data):
+        of = (data[0] + data[-1]) / 2
+        peak_idx = np.argmax(np.abs(data - of))
+        x0 = coordinates[peak_idx]
+        A = data[peak_idx] - of
+        half_peak_idx = np.argmin(np.abs(data - of - A / 2))
+        k = 1/(coordinates[half_peak_idx]-x0)**2
+        return dict(A=A, x0=x0, k=k, of=of)
+
+
 class Cosine(Fit):
     @staticmethod
     def model(coordinates, A, f, phi, of) -> np.ndarray:

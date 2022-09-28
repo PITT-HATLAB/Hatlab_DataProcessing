@@ -4,7 +4,7 @@ import numpy as np
 import lmfit
 from matplotlib import pyplot as plt
 from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
-from Hatlab_DataProcessing.fitter.generic_functions import Cosine, ExponentialDecay, ExponentialDecayWithCosine, ExponentialDecayWithCosineBeating
+from Hatlab_DataProcessing.fitter.generic_functions import Cosine, ExponentialDecay, ExponentialDecayWithCosine, ExponentialDecayWithCosineBeating, Lorentzian
 from Hatlab_DataProcessing.base import Analysis, AnalysisResult
 from Hatlab_DataProcessing.helpers.unit_converter import t2f
 
@@ -14,13 +14,15 @@ class QubitBasicResult(AnalysisResult):
         super().__init__(parameters)
         self.lmfit_result=lmfit_result
 
-    def plot(self, **figArgs):
+    def plot(self, xlabel=None, ylabel=None, **figArgs):
         x_data = self.lmfit_result.userkws["coordinates"]
         result_str = self.params["result_str"].value
         plt.figure(**figArgs)
         plt.title(result_str)
         plt.plot(x_data, self.lmfit_result.data, ".")
         plt.plot(x_data, self.lmfit_result.best_fit, linewidth=2)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
 
 class PiPulseTuneUp(Fit):
     @staticmethod
@@ -57,6 +59,25 @@ class PiPulseTuneUp(Fit):
                                 dict(zero_amp=zero_amp,pi_pulse_amp=pi_pulse_amp, pi_2_pulse_amp=pi_2_pulse_amp,
                                      A=cosFitResult.params["A"].value, result_str=result_str))
 
+
+class PulseSpec(Fit):
+    @staticmethod
+    def model(coordinates, A, x0, k, of) -> np.ndarray:
+        """$ A /(k*(x-x0)**2+1) +of $"""
+        return Lorentzian.model(coordinates, A, x0, k, of)
+
+    @staticmethod
+    def guess(coordinates, data):
+        return Lorentzian.guess(coordinates, data)
+
+    def analyze(self, coordinates, data, dry=False, params={}, freq_unit="MHz", **fit_kwargs):
+        fitResult = super().analyze(coordinates, data, dry=False, params=params, **fit_kwargs)
+
+        fit_freq = fitResult.params["x0"].value
+        result_str = f'freq is {str(fit_freq)[:8]} {freq_unit}'
+        print(result_str)
+
+        return QubitBasicResult(fitResult, dict(fit_freq=fit_freq, result_str=result_str))
 
 class T1Decay(Fit):
     @staticmethod

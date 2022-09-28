@@ -44,6 +44,23 @@ class QubitBasicResult_rot(AnalysisResult):
             _hline(g_val, e_val)
 
 
+class PulseSpec(Analysis):
+    @staticmethod
+    def analyze(x_data, iq_data, rot_result={}, dry=False, params={}, **fit_kwargs) -> QubitBasicResult_rot:
+        # rotate data
+        rot_angle = rot_result.get("rot_angle", "find")
+        rotIQ = RotateData(x_data, iq_data)
+        iq_new = rotIQ.run(rot_angle)
+        #fit to Lorentzian
+        decayFit  = qf.PulseSpec(x_data, iq_new.params["i_data"].value)
+        fitResult = decayFit.run(dry, params, **fit_kwargs)
+
+        rot_result.update(i_new=iq_new.params["i_data"].value,
+                          q_new=iq_new.params["q_data"].value)
+
+        return QubitBasicResult_rot(fitResult.lmfit_result, fitResult.params, rot_result)
+
+
 class PiPulseTuneUp(Analysis):
     @staticmethod
     def analyze(x_data, iq_data, rot_angle:Union[float, str]="find", dry=False, params={}, **fit_kwargs):
