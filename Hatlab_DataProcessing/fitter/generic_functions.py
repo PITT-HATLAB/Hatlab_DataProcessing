@@ -32,7 +32,8 @@ class Lorentzian(Fit):
         x0 = coordinates[peak_idx]
         A = data[peak_idx] - of
         half_peak_idx = np.argmin(np.abs(data - of - A / 2))
-        k = 1/(coordinates[half_peak_idx]-x0)**2
+        half_peak_width_2 = coordinates[half_peak_idx]-x0 if half_peak_idx!=peak_idx else coordinates[peak_idx + 1] - x0
+        k = 1 / (half_peak_width_2) ** 2
         return dict(A=A, x0=x0, k=k, of=of)
 
 
