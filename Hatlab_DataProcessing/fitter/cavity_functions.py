@@ -138,6 +138,7 @@ class CavReflectionResult_Phase():
     def __init__(self, lmfit_result: lmfit.model.ModelResult):
         self.lmfit_result = lmfit_result
         self.params = lmfit_result.params
+        self.eDelay = self.params["eDelay"].value
         self.f0 = self.params["f0"].value
         self.Qext = self.params["Qext"].value
         self.Qint = self.params["Qint"].value
@@ -213,7 +214,7 @@ class CavReflectionPhaseOnly(Fit):
         Qext = lmfit.Parameter("Qext", value=QextGuess, min=QextGuess / 100, max=QextGuess * 100)
         Qint = lmfit.Parameter("Qint", value=QintGuess, min=QintGuess / 100, max=QintGuess * 100)
         f0 = lmfit.Parameter("f0", value=f0Guess, min=freq[0], max=freq[-1])
-        phaseOff = lmfit.Parameter("phaseOff", value=phaseOffGuess, min=-TWOPI, max=TWOPI)
+        phaseOff = lmfit.Parameter("phaseOff", value=phaseOffGuess, min=-TWOPI*4, max=TWOPI*4)
         eDelay = lmfit.Parameter("eDelay", value=eDelayGuess)
 
         return dict(Qext=Qext, Qint=Qint, f0=f0, phaseOff=phaseOff, eDelay=eDelay)
