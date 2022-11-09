@@ -125,7 +125,7 @@ class PostSelectionData_Base():
         print("sel%: " + str(self.sel_pct))
         return self.I_vld, self.Q_vld
 
-    def auto_fit(self, nBlobs=2, fitGuess={}, bins=201, stateMask=None, plotGauFitting=True):
+    def auto_fit(self, nBlobs=2, fitGuess={}, bins=201, stateMask=None, plotGauFitting=True, dryRun=False):
         fit_I = self.I_sel.flatten()
         fit_Q = self.Q_sel.flatten()
         self.stateMask = stateMask
@@ -141,7 +141,7 @@ class PostSelectionData_Base():
         else:
             raise ValueError(f"gau blob number {nBlobs} not implemented")
 
-        fitResult = gau2DFit.run(params=fitGuess)
+        fitResult = gau2DFit.run(params=fitGuess, dry=dryRun)
         if plotGauFitting:
             fitResult.print()
             fitResult.plot()
@@ -184,6 +184,8 @@ class PostSelectionData_ge(PostSelectionData_Base):
         if geLocation is None:
             self.stateFitResult = self.auto_fit(2, fitGuess, histBins, stateMask, plotGauFitting)
             geLocation = self.stateFitResult.state_location_list
+        else:
+            self.stateFitResult = self.auto_fit(2, fitGuess, histBins, stateMask, plotGauFitting, dryRun=True)
         self.geLocation = geLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.g_r, self.e_r = self.geLocation
         self.histBins = histBins
@@ -557,10 +559,12 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
     selData = PostSelectionData_ge(Idata, Qdata, [1, 0], geLocation, False,
                                    fitGuess, stateMask, histBins, histRange)
 
+    fit_location = True if geLocation is None else False
 
     if plot:
         fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(18,5))
-        selData.stateFitResult.plot(ax1)
+        if fit_location:
+            selData.stateFitResult.plot(ax1)
         selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=plot, plot_ax=ax2)
         I_vld, Q_vld = selData.sel_data(selMask, plot=False, progress=progress)
         g_pct = selData.cal_g_pct(plot=plot, plot_ax=ax3, progress=progress)
