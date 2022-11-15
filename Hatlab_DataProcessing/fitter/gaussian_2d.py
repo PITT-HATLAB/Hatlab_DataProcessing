@@ -112,6 +112,7 @@ class Gaussian2DResult(FitResult):
             print(f"{p}: {np.round(self.params[p].value, 4)}")
         dec = int(max(-np.log10(np.min(np.abs(self.state_location_list))), 0))
         print(f"stateLocation: {np.around(self.state_location_list, dec)}")
+        return np.around(self.state_location_list, dec)
 
 
 class Gaussian2D_Base(Fit):
@@ -195,6 +196,23 @@ class Gaussian2D_3Blob(Gaussian2D_Base):
             twoD_gaussian_func(coordinates, amp3, x3, y3, sigmaX3, sigmaY3, theta3, offset3)
         return z
 
+
+def histo2DFitting(bufi, bufq, bins=101, histRange=None, blobs=2, guessParams={}):
+    if histRange is None:
+        max_val = np.max([bufi, bufq])
+        histRange = [[-max_val, max_val], [-max_val, max_val]]
+    z_, x_, y_ = np.histogram2d(bufi.flatten(), bufq.flatten(), bins=101, range=np.array(histRange))
+    z_ = z_.T
+    xd, yd = np.meshgrid(x_[:-1], y_[:-1])
+    if blobs == 2:
+        gau2DFit = Gaussian2D_2Blob((xd, yd), z_)
+        fitResult = gau2DFit.run(params=guessParams)
+    elif blobs == 3:
+        gau2DFit = Gaussian2D_3Blob((xd, yd), z_)
+        fitResult = gau2DFit.run(params=guessParams)
+    else:
+        raise NotImplementedError
+    return fitResult
 
 if __name__ == '__main__':
     pass
