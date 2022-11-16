@@ -121,8 +121,8 @@ class ExponentialDecayWithCosineSquare(Fit):
 
     @staticmethod
     def guess(coordinates, data):
-        of = np.min(data)
-        A = (np.max(data) - np.min(data))
+        of = data[-1]
+        A = data[0] - data[-1]
         fft_val = np.fft.rfft(data)[1:]
         fft_frq = np.fft.rfftfreq(data.size, np.mean(coordinates[1:] - coordinates[:-1]))[1:]
         idx = np.argmax(np.abs(fft_val))

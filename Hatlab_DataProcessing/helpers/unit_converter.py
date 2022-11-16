@@ -36,6 +36,21 @@ def freqUnit(f_unit):
     else:
         raise NameError("unsupported freq unit")
 
+def timeUnit(t_unit):
+    if t_unit == "ps":
+        return 10**-12
+    elif t_unit == "ns":
+        return 10**-9
+    elif t_unit == "us":
+        return 10**-6
+    elif t_unit == "ms":
+        return 10**-3
+    elif t_unit == "s":
+        return 10**0
+    else:
+        raise NameError("unsupported freq unit")
+
+
 def rounder(value, digit=5):
     return f"{value:.{digit}e}"
 
