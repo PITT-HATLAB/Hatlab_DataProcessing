@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from plottr.data import DataDict, MeshgridDataDict
-from plottr.data.datadict_storage import _data_file_path, DDH5Writer, DATAFILEXT, is_meta_key, deh5ify, FileOpener
+from plottr.data.datadict_storage import _data_file_path, DDH5Writer, DATAFILEXT, is_meta_key, deh5ify, FileOpener, AppendMode, datadict_to_hdf5, add_cur_time_attr
 
 
 class HatDDH5Writer(DDH5Writer):
@@ -64,8 +64,29 @@ class HatDDH5Writer(DDH5Writer):
         self.filename = Path(str(self.filename) + appendix)
         return data_file_path
 
-    def update_meta(self):
-        pass
+    def add_meta(self, **kwargs: Any) -> None:
+        """Add/update metadata to the datafile (and the internal `DataDict`).
+
+        """
+        for k, v in kwargs.items():
+            self.datadict.add_meta(k, v)
+
+        if self.inserted_rows > 0:
+            mode = AppendMode.new
+        else:
+            mode = AppendMode.none
+        nrecords = self.datadict.nrecords()
+        if nrecords is not None and nrecords > 0:
+            datadict_to_hdf5(self.datadict, str(self.filepath),
+                             groupname=self.groupname,
+                             append_mode=mode)
+
+            assert self.filepath is not None
+            with FileOpener(self.filepath, 'a') as f:
+                add_cur_time_attr(f, name='last_change')
+                add_cur_time_attr(f[self.groupname], name='last_change')
+
+
 
 
 class DummyWriter():
