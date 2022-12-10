@@ -22,7 +22,10 @@ class Fit(Analysis):
             else:
                 _params.add(pn, value=pv)
         for pn, pv in params.items():
-            _params[pn] = pv
+            if isinstance(pv, lmfit.Parameter):
+                _params[pn] = pv
+            else:
+                _params[pn] = lmfit.Parameter(pn, pv)
 
         if dry:
             lmfit_result = lmfit.model.ModelResult(model, params=_params,
