@@ -97,7 +97,7 @@ class CavTraceRefResult():
 
 class CavTraceRef(Fit):
     def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
-                 data: np.ndarray, conjugate: bool = True):
+                 data: np.ndarray, conjugate: bool = False):
         """ fit cavity reflection function
         :param conjugate: fit to conjugated cavity reflection function (for VNA data)
         """
@@ -197,7 +197,7 @@ class CavTraceRefDecayResult():
 
 class CavTraceRefDecay(Fit):
     def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
-                 data: np.ndarray, conjugate: bool = True):
+                 data: np.ndarray, conjugate: bool = False):
         """ fit cavity reflection function
         :param conjugate: fit to conjugated cavity reflection function (for VNA data)
         """
