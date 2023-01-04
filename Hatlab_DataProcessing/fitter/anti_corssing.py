@@ -1,10 +1,8 @@
 from typing import Tuple, Any, Optional, Union, Dict, List
 
 import numpy as np
-from numpy.fft import ifft
 import matplotlib.pyplot as plt
 import lmfit
-from lmfit.model import ModelResult
 from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
 from Hatlab_DataProcessing.helpers.unit_converter import freqUnit, rounder, realImag2magPhase
 
@@ -24,7 +22,7 @@ def lin_freq(x, f0, x0, k):
 
 
 class AntiCrossingResult():
-    def __init__(self, lmfit_result: lmfit.model.ModelResult, xData, model, data):
+    def __init__(self, lmfit_result: lmfit.model.ModelResult, x_data, model, data):
         self.lmfit_result = lmfit_result
         self.params = lmfit_result.params
 
@@ -32,13 +30,13 @@ class AntiCrossingResult():
         self.x0 = self.params["x0"].value
         self.g = self.params["g"].value
         self.k = self.params["k"].value
-        self.xData = xData
+        self.x_data = x_data
         self.model = model
         self.data = data
 
     def plot(self, plot_ax=None, **figArgs):
-        f0_fit = self.model(self.xData, self.f0, self.x0, self.k, self.g)[0]
-        f1_fit = self.model(self.xData, self.f0, self.x0, self.k, self.g)[1]
+        f0_fit = self.model(self.x_data, self.f0, self.x0, self.k, self.g)[0]
+        f1_fit = self.model(self.x_data, self.f0, self.x0, self.k, self.g)[1]
         f0_data = self.data[0]
         f1_data = self.data[1]
 
@@ -49,10 +47,10 @@ class AntiCrossingResult():
         else:
             ax = plot_ax
 
-        ax.plot(self.xData, f0_data,  label="f0 data")
-        ax.plot(self.xData, f1_data,  label="f1 data")
-        ax.plot(self.xData, f0_fit, label="f0 fit")
-        ax.plot(self.xData, f1_fit, label="f1 fit")
+        ax.plot(self.x_data, f0_data,  label="f0 data")
+        ax.plot(self.x_data, f1_data,  label="f1 data")
+        ax.plot(self.x_data, f0_fit, label="f0 fit")
+        ax.plot(self.x_data, f1_fit, label="f1 fit")
         ax.legend()
         plt.show()
 
@@ -97,7 +95,7 @@ class AntiCrossing(Fit):
 
         k0_ = (f0_[f_max_idx] - f0_[flat_idx_0])/(coordinates[f_max_idx]-coordinates[flat_idx_0])
         k1_ = (f1_[f_min_idx] - f1_[flat_idx_1])/(coordinates[f_min_idx]-coordinates[flat_idx_1])
-        k = (k0_ + k1_)/2
+        k = k0_ + k1_
 
         g = (f0_[f_max_idx] - f1_[f_min_idx])/5
 
@@ -143,7 +141,7 @@ class AntiCrossing(Fit):
         else:
             lmfit_result = lmfit.minimize(self.residual, _params, args=(self.coordinates, self.data))
 
-        return AntiCrossingResult(lmfit_result, xData=self.coordinates, model=self.model, data=self.data)
+        return AntiCrossingResult(lmfit_result, x_data=self.coordinates, model=self.model, data=self.data)
         # return lmfit_result
 
 
@@ -163,9 +161,9 @@ if __name__ == "__main__":
     plt.plot(biasList, f1, "--")
     plt.plot(biasList, [f0]*len(biasList), "--")
 
-    data = freqs + (np.random.rand(*freqs.shape)- 0.5)*0.01
-    data[0][:300] = [np.nan] * 300
-    data[1][-300:] = [np.nan] * 300
+    data = freqs + (np.random.rand(*freqs.shape)- 0.5)*0.02
+    data[0][:200] = [np.nan] * 200
+    data[1][-200:] = [np.nan] * 200
     plt.figure()
     plt.plot(biasList, data[0, :])
     plt.plot(biasList, data[1, :])

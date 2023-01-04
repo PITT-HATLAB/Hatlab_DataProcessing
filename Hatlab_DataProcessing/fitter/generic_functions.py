@@ -4,6 +4,7 @@ import numpy as np
 import lmfit
 
 from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
+from Hatlab_DataProcessing.analyzer.cut_peak import cut_peak
 
 
 class Linear(Fit):
@@ -27,11 +28,13 @@ class Lorentzian(Fit):
 
     @staticmethod
     def guess(coordinates, data):
-        of = (data[0] + data[-1]) / 2
-        peak_idx = np.argmax(np.abs(data - of))
+        non_nan_data = data[np.isfinite(data)]
+        of = (non_nan_data[0] + non_nan_data[-1]) / 2
+        peak_idx = np.nanargmax(np.abs(data - of))
         x0 = coordinates[peak_idx]
         A = data[peak_idx] - of
-        half_peak_idx = np.argmin(np.abs(data - of - A / 2))
+        new_data, cut_idx_l, cut_idx_r = cut_peak(data, plot=False)
+        half_peak_idx = cut_idx_r
         half_peak_width_2 = coordinates[half_peak_idx]-x0 if half_peak_idx!=peak_idx else coordinates[peak_idx + 1] - x0
         k = 1 / (half_peak_width_2) ** 2
         return dict(A=A, x0=x0, k=k, of=of)
