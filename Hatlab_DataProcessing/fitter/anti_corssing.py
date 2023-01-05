@@ -75,7 +75,6 @@ class AntiCrossing(Fit):
 
     @staticmethod
     def model(coordinates, f0, x0, k, g) -> np.ndarray:
-        """"reflection function of a harmonic oscillator"""
         f1 = lin_freq(coordinates, f0, x0, k)
         freqs = hybridize_freq(f0, f1, g)
         return freqs
@@ -104,13 +103,9 @@ class AntiCrossing(Fit):
         k = lmfit.Parameter("k", value=k)
         g = lmfit.Parameter("g", value=g, min=0, max=g*20)
 
-        from pprint import pprint
-        pprint(dict(f0=f0, x0=x0, k=k, g=g))
-
         return dict(f0=f0, x0=x0, k=k, g=g)
 
     def residual(self, pars, x, data):
-        # unpack parameters: extract .value attribute for each parameter
         parvals = pars.valuesdict()
         f0 = parvals['f0']
         x0 = parvals['x0']
@@ -142,7 +137,6 @@ class AntiCrossing(Fit):
             lmfit_result = lmfit.minimize(self.residual, _params, args=(self.coordinates, self.data))
 
         return AntiCrossingResult(lmfit_result, x_data=self.coordinates, model=self.model, data=self.data)
-        # return lmfit_result
 
 
 
