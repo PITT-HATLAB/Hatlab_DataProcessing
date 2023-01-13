@@ -15,8 +15,8 @@ from Hatlab_DataProcessing.analyzer.cut_peak import cut_peak
 
 def extract_mode_freq(freq_list, spec_data, n_modes=2, fit_tol = 0.15, n_peak_bw = 30):
     """
-    extract mode frequencies from a flux sweep (or other similar experiments) of qubit pulse spec.
-    For each flux bias, the pulse spec data is fitted to a Lorentzian and fid the qubit mode freq.
+    extract mode frequencies from a flux sweep (or other parameter sweep) of qubit pulse spec.
+    For each flux bias, the pulse spec data is fitted to a Lorentzian and find the qubit mode freq.
     Multiple modes can also be extracted by setting n_modes > 1 (e.g. for anti-crossing data).
 
 
@@ -55,7 +55,7 @@ def extract_mode_freq(freq_list, spec_data, n_modes=2, fit_tol = 0.15, n_peak_bw
     return results
 
 
-#todo: split the frequnecy traces
+#todo: function that splits the frequnecy traces
 
 # results = np.zeros((n_modes, len(x_data))) + np.nan
 # trace0 = np.linspace(0, -90, 91)
