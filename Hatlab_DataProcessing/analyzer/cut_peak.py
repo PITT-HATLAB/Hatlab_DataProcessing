@@ -33,8 +33,8 @@ def cut_peak(data, cut_factor=0.5, plot=True, debug=False):
             cut_idx = np.where(data < y_cut)
         else:
             cut_idx = np.where(data > y_cut)
-    cut_idx_r = int(np.where(cut_idx - peak0_idx > 0, cut_idx, np.inf).min())  # cut index to the right of peak0
-    cut_idx_l = int(np.where(peak0_idx - cut_idx > 0, cut_idx, -np.inf).max())  # cut index to the left of peak0
+    cut_idx_r = int(np.clip(np.where(cut_idx - peak0_idx > 0, cut_idx, np.inf).min(), 0, len(data)-1))  # cut index to the right of peak0
+    cut_idx_l = int(np.clip(np.where(peak0_idx - cut_idx > 0, cut_idx, -np.inf).max(), 0, len(data)-1)) # cut index to the left of peak0
 
     # set peak region to nan
     temp_ = np.arange(0, len(data))
