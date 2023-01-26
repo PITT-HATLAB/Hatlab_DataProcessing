@@ -69,10 +69,12 @@ class Gaussian2DResult(FitResult):
         self.nBlobs = nBlobs
         for p in self.params:
             self.__setattr__(p, self.params[p].value)
-        self.sigma_g = np.sqrt(self.sigmaX1 ** 2 + self.sigmaY1 ** 2)
-        self.sigma_e = np.sqrt(self.sigmaX2 ** 2 + self.sigmaY2 ** 2)
-        self.ImOverSigma = np.sqrt(
-            (self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) / self.sigma_g
+
+        if nBlobs == 2:
+            self.sigma_g = np.sqrt(self.sigmaX1 ** 2 + self.sigmaY1 ** 2)
+            self.sigma_e = np.sqrt(self.sigmaX2 ** 2 + self.sigmaY2 ** 2)
+            self.ImOverSigma = np.sqrt(
+                (self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) / self.sigma_g
 
         #reorder the fit result in order of amp
         resultParams = lmfit_result.params
@@ -95,17 +97,19 @@ class Gaussian2DResult(FitResult):
 
     def plot(self, ax=None, **figArgs):
         x, y = self.coord
-        z = gaussian_filter(self.data, [2, 2])
+        # z = gaussian_filter(self.data, [2, 2])
+        z = self.data
         if ax is None:
             fig, ax = plt.subplots(1, 1)
         ax.set_title("state fitting")
-        ax.pcolormesh(x, y, z, shading="auto")
+        ax.pcolormesh(x, y, z, shading="auto", cmap="hot")
         ax.set_aspect(1)
-        ax.contour(x, y, self.lmfit_result.best_fit, colors='w')
-
+        ax.contour(x, y, self.lmfit_result.best_fit, linestyles="dotted", colors='w')
         ax.scatter(self.state_x_list, self.state_y_list, c="r", s=0.7)
-        for i, txt in enumerate(["g", "e", "f"][:self.nBlobs]):
-            ax.annotate(txt, (self.state_x_list[i], self.state_y_list[i]))
+
+        if self.nBlobs > 1:
+            for i, txt in enumerate(["g", "e", "f"][:self.nBlobs]):
+                ax.annotate(txt, (self.state_x_list[i], self.state_y_list[i]))
 
     def print(self):
         for p in self.params:
@@ -165,6 +169,17 @@ class Gaussian2D_Base(Fit):
         return Gaussian2DResult(lmfit_result, self.coordinates, self.data, self.nBlobs)
 
 
+class Gaussian2D_1Blob(Gaussian2D_Base):
+    def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
+                 data: np.ndarray, maskIndex=None):
+        super().__init__(coordinates, data, 1, maskIndex)
+
+    @staticmethod
+    def model(coordinates, amp1, x1, y1, sigmaX1, sigmaY1, theta1, offset1):
+        """"multiple 2D gaussian function"""
+        z = twoD_gaussian_func(coordinates, amp1, x1, y1, sigmaX1, sigmaY1, theta1, offset1)
+        return z
+
 class Gaussian2D_2Blob(Gaussian2D_Base):
     def __init__(self, coordinates: Union[Tuple[np.ndarray, ...], np.ndarray],
                  data: np.ndarray, maskIndex=None):
@@ -201,10 +216,13 @@ def histo2DFitting(bufi, bufq, bins=101, histRange=None, blobs=2, guessParams={}
     if histRange is None:
         max_val = np.max([bufi, bufq])
         histRange = [[-max_val, max_val], [-max_val, max_val]]
-    z_, x_, y_ = np.histogram2d(bufi.flatten(), bufq.flatten(), bins=101, range=np.array(histRange))
+    z_, x_, y_ = np.histogram2d(bufi.flatten(), bufq.flatten(), bins=bins, range=np.array(histRange))
     z_ = z_.T
     xd, yd = np.meshgrid(x_[:-1], y_[:-1])
-    if blobs == 2:
+    if blobs == 1:
+        gau2DFit = Gaussian2D_1Blob((xd, yd), z_)
+        fitResult = gau2DFit.run(params=guessParams)
+    elif blobs == 2:
         gau2DFit = Gaussian2D_2Blob((xd, yd), z_)
         fitResult = gau2DFit.run(params=guessParams)
     elif blobs == 3:
