@@ -214,7 +214,7 @@ class Gaussian2D_3Blob(Gaussian2D_Base):
 
 def histo2DFitting(bufi, bufq, bins=101, histRange=None, blobs=2, guessParams={}):
     if histRange is None:
-        max_val = np.max([bufi, bufq])
+        max_val = np.max(np.abs([bufi, bufq]))
         histRange = [[-max_val, max_val], [-max_val, max_val]]
     z_, x_, y_ = np.histogram2d(bufi.flatten(), bufq.flatten(), bins=bins, range=np.array(histRange))
     z_ = z_.T
