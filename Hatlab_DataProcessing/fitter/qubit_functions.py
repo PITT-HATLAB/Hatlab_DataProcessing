@@ -13,6 +13,7 @@ class QubitBasicResult(AnalysisResult):
     def __init__(self, lmfit_result, parameters: Dict[str, Union[Dict[str, Any], Any]]):
         super().__init__(parameters)
         self.lmfit_result=lmfit_result
+        self.result_str = parameters.get("result_str")
 
     def plot(self, xlabel=None, ylabel=None, plot_ax=None, **figArgs):
         x_data = self.lmfit_result.userkws["coordinates"]
@@ -21,9 +22,10 @@ class QubitBasicResult(AnalysisResult):
             fix, plot_ax = plt.subplots(1,1, **figArgs)
         plot_ax.set_title(result_str)
         plot_ax.plot(x_data, self.lmfit_result.data, ".")
-        plot_ax.plot(x_data, self.lmfit_result.best_fit, linewidth=2)
+        plot_ax.plot(x_data, self.lmfit_result.best_fit, linewidth=2, label=self.result_str)
         plot_ax.set_xlabel(xlabel)
         plot_ax.set_ylabel(ylabel)
+        plot_ax.legend()
 
     def get_fit_value(self, param_name):
         return self.lmfit_result.params[param_name].value

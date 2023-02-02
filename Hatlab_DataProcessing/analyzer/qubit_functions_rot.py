@@ -28,20 +28,22 @@ class QubitBasicResult_rot(AnalysisResult):
         print(rot_dict)
         return rot_dict
 
-    def plot(self, **figArgs):
+    def plot(self, plot_ax=None, **figArgs):
+        if plot_ax is None:
+            fix, plot_ax = plt.subplots(1,1, **figArgs)
         g_val = self.rot_result.get("g_val", None)
         e_val = self.rot_result.get("e_val", None)
         i_new = self.rot_result["i_new"]
         q_new = self.rot_result["q_new"]
         x_data = self.lmfit_result.userkws["coordinates"]
         result_str = self.params["result_str"].value
-        plt.figure(**figArgs)
-        plt.title(result_str)
-        plt.plot(x_data, q_new, ".")
-        plt.plot(x_data, i_new, ".")        
-        plt.plot(x_data, self.lmfit_result.best_fit, linewidth=3)
+        plot_ax.set_title(result_str)
+        plot_ax.plot(x_data, q_new, ".")
+        plot_ax.plot(x_data, i_new, ".")        
+        plot_ax.plot(x_data, self.lmfit_result.best_fit, linewidth=3, label=result_str)
         if (g_val != None) and (e_val != None):
             _hline(g_val, e_val)
+        plot_ax.legend()
 
     def get_fit_value(self, param_name):
         return self.lmfit_result.params[param_name].value
