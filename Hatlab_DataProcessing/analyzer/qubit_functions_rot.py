@@ -45,6 +45,10 @@ class QubitBasicResult_rot(AnalysisResult):
             _hline(g_val, e_val)
         plot_ax.legend()
 
+    def print(self):
+        for k, p in self.params:
+            print(f"{k}: {p.value}")
+
     def get_fit_value(self, param_name):
         return self.lmfit_result.params[param_name].value
 
@@ -135,7 +139,6 @@ class T2RamseyBeating(Analysis):
 
         rot_result.update(i_new=iq_new.params["i_data"].value,
                           q_new=iq_new.params["q_data"].value)
-
         return QubitBasicResult_rot(fitResult.lmfit_result, fitResult.params, rot_result)
 
 

@@ -142,11 +142,16 @@ class T2RamseyBeating(Fit):
         fit_tau = fitResult.params["tau"].value
         fit_f1 = fitResult.params["f1"].value
         fit_f2 = fitResult.params["f2"].value
+        fit_A = fitResult.params["A"].value
+        fit_B = fitResult.params["B"].value
+        fit_phi1 = fitResult.params["phi1"].value
+        fit_phi2 = fitResult.params["phi2"].value
         result_str = f'tau is {str(fit_tau)[:5]} {time_unit}, f1 is {f"{fit_f1:.6e}"} {t2f(time_unit)}, ' \
                      f'f2 is {f"{fit_f2:.6e}"} {t2f(time_unit)}'
         print(result_str)
 
-        return QubitBasicResult(fitResult, dict(tau=fit_tau, f1=fit_f1, f2=fit_f2, result_str=result_str))
+        return QubitBasicResult(fitResult, dict(tau=fit_tau, f1=fit_f1, f2=fit_f2, result_str=result_str,
+                                                A=fit_A, B=fit_B, phi1=fit_phi1, phi2=fit_phi2))
 
 
 if __name__ == "__main__":

@@ -157,6 +157,8 @@ class PostSelectionData_Base():
             xData = {"exp": np.arange(len(self.I_vld))}
 
         x_shape = list(map(len, xData.values()))
+        if x_shape == [1]:
+            return
         I_vld = np.array(self.I_vld, dtype=object).reshape(*x_shape)
         Q_vld = np.array(self.Q_vld, dtype=object).reshape(*x_shape)
 
@@ -581,8 +583,8 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
     final_shape = list((*original_shape[1:-1],
                           int(original_shape[-1] * np.sum(selData.selPattern) / len(selData.selPattern))))
     g_pct = g_pct.reshape(*final_shape)
-    I_vld = np.array(I_vld, dtype=object).reshape(*final_shape)
-    Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape)
+    I_vld = np.array(I_vld, dtype=object).reshape(*final_shape, -1)
+    Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
 
     return g_pct, I_vld, Q_vld, selData
 
