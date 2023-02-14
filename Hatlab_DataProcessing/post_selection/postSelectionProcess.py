@@ -19,6 +19,10 @@ from tqdm import tqdm
 from Hatlab_DataProcessing.fitter.gaussian_2d import Gaussian2D_2Blob, Gaussian2D_3Blob
 from Hatlab_DataProcessing.slider_plot.sliderPlot import sliderHist2d
 
+def auto_hist_range(data_I, data_Q):
+    data_max = np.max(np.abs(np.array([data_I, data_Q])))
+    histRange = [[-data_max, data_max], [-data_max, data_max]]
+    return histRange
 
 class PostSelectionData_Base():
     def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
@@ -35,8 +39,7 @@ class PostSelectionData_Base():
         self.data_Q_raw = data_Q
         self.selPattern = selPattern
         if histRange is None:
-            data_max = np.max(np.abs(np.array([data_I, data_Q])))
-            self.histRange = [[-data_max, data_max], [-data_max, data_max]]
+            self.histRange = auto_hist_range(data_I, data_Q)
         else:
             self.histRange = histRange
 

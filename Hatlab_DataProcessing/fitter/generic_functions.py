@@ -2,6 +2,8 @@ from typing import Tuple, Any, Optional, Union, Dict, List
 
 import numpy as np
 import lmfit
+from lmfit import Parameter
+import matplotlib.pyplot as plt
 
 from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
 from Hatlab_DataProcessing.analyzer.cut_peak import cut_peak
@@ -38,6 +40,25 @@ class Lorentzian(Fit):
         half_peak_width_2 = coordinates[half_peak_idx]-x0 if half_peak_idx!=peak_idx else coordinates[peak_idx + 1] - x0
         k = 1 / (half_peak_width_2) ** 2
         return dict(A=A, x0=x0, k=k, of=of)
+
+
+class Gaussian(Fit):
+    @staticmethod
+    def model(coordinates, A, x0, sigma, of) -> np.ndarray:
+        """$ A /(k*(x-x0)**2+1) +of $"""
+        return A * np.exp(-(coordinates - x0) ** 2 / (2 * sigma ** 2)) + of
+
+    @staticmethod
+    def guess(coordinates, data):
+        non_nan_data = data[np.isfinite(data)]
+        of = (non_nan_data[0] + non_nan_data[-1]) / 2
+        peak_idx = np.nanargmax(np.abs(data - of))
+        x0 = coordinates[peak_idx]
+        A = data[peak_idx] - of
+        new_data, cut_idx_l, cut_idx_r = cut_peak(data, cut_factor=np.exp(-0.5), plot=False)
+        half_peak_idx = cut_idx_r
+        sigma = coordinates[half_peak_idx]-x0 if half_peak_idx!=peak_idx else coordinates[peak_idx + 1] - x0
+        return dict(A=A, x0=x0, sigma=sigma, of=of)
 
 
 class Cosine(Fit):
@@ -129,8 +150,8 @@ class ExponentialDecayWithCosineSquare(Fit):
             A = np.min(data) - data[-1]
         else:
             A = np.max(data) - data[-1]
-        fft_val = np.fft.rfft(data)[1:]
-        fft_frq = np.fft.rfftfreq(data.size, np.mean(coordinates[1:] - coordinates[:-1]))[1:]
+        fft_val = np.fft.rfft(data)[2:]
+        fft_frq = np.fft.rfftfreq(data.size, np.mean(coordinates[1:] - coordinates[:-1]))[2:]
         idx = np.argmax(np.abs(fft_val))
         f = fft_frq[idx] / 2
         phi = np.angle(fft_val[idx]) / 2
