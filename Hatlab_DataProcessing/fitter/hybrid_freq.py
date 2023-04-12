@@ -12,7 +12,7 @@ plt.close("all")
 def dressed_hyb_freq(fb, f0, g):
     """
     function that describes the relation between the dressed (measured) frequencies of two coupled modes.
-    assuming only one bare mode (mode b) is moving. Check notebook.hybridized_modes for details.
+    assuming only one bare mode (mode b) is moving. Check notebook.hybridized_modes.nb for details.
 
     :param fb: dressed frequency of the moving mode (e.g. measured snail mode freq)
     :param f0: bare frequency of the fixed-freq mode
@@ -34,9 +34,10 @@ class HybridFreqResult():
         self.f0 = self.params["f0"].value
         self.g = self.params["g"].value
 
-    def plot(self, x_data, plot_ax=None, **figArgs):
+    def plot(self, x_data=None, plot_ax=None, **figArgs):
         fa_fit = dressed_hyb_freq(self.fb, self.f0, self.g)
         fa_data = self.fa
+        x_data = np.arange(len(fa_data)) if x_data is None else x_data
 
         if plot_ax is None:
             fig_args_ = dict(figsize=(8, 5))
@@ -44,7 +45,7 @@ class HybridFreqResult():
             fig, ax = plt.subplots(1, 1, **fig_args_)
         else:
             ax = plot_ax
-
+        ax.set_title(f"g = {self.g}")
         ax.plot(x_data, fa_data, "*",  label="fa data")
         ax.plot(x_data, fa_fit,  label="fa fit")
         ax.plot(x_data, self.fb, label="fb data")
@@ -121,8 +122,8 @@ if __name__ == "__main__":
     # fitting
     fit = HybridFreq(data[0], data[1])
     result = fit.run(nan_policy="omit")
-    print(fit.guess(fit.coordinates, fit.data))
-    print(result.params)
+    print("guess:", fit.guess(fit.coordinates, fit.data))
+    print("fit:", result.params)
     result.plot(biasList)
 
 
