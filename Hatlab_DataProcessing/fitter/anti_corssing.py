@@ -1,13 +1,11 @@
-from typing import Tuple, Any, Optional, Union, Dict, List
-
+from typing import Tuple, Union
 import numpy as np
 import matplotlib.pyplot as plt
 import lmfit
-from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
-from Hatlab_DataProcessing.helpers.unit_converter import freqUnit, rounder, realImag2magPhase
+from Hatlab_DataProcessing.fitter.fitter_base import Fit
+from Hatlab_DataProcessing.helpers.unit_converter import rounder
 
 
-plt.close("all")
 
 def hybridize_freq(f1, f0, g):
     """
@@ -141,13 +139,15 @@ class AntiCrossing(Fit):
 
 
 if __name__ == "__main__":
+    # plt.close("all")
+    
+    # creates some fake data
     biasList = np.linspace(2, 3, 501)
     f0 = 5
     x0 = 2.5
     k = -0.2
     f1 = lin_freq(biasList, f0, x0, k)
     g = 0.02
-    # freqs = np.array([hybridize_freq(f0, f1_, g) for f1_ in f1])
     freqs = hybridize_freq(f0, f1, g)
     plt.figure()
     plt.plot(biasList, freqs[0, :])
@@ -155,6 +155,7 @@ if __name__ == "__main__":
     plt.plot(biasList, f1, "--")
     plt.plot(biasList, [f0]*len(biasList), "--")
 
+    # add noise and disable some data
     data = freqs + (np.random.rand(*freqs.shape)- 0.5)*0.02
     data[0][:200] = [np.nan] * 200
     data[1][-200:] = [np.nan] * 200
@@ -163,7 +164,7 @@ if __name__ == "__main__":
     plt.plot(biasList, data[1, :])
 
 
-    # #
+    # fitting
     fit = AntiCrossing(biasList, data)
     result = fit.run()
     print(result.params)

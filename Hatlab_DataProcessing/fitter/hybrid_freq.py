@@ -1,13 +1,12 @@
-from typing import Tuple, Any, Optional, Union, Dict, List
-
+from typing import Tuple, Any, Union
 import numpy as np
 import matplotlib.pyplot as plt
 import lmfit
-from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
-from Hatlab_DataProcessing.helpers.unit_converter import freqUnit, rounder, realImag2magPhase
+from Hatlab_DataProcessing.fitter.fitter_base import Fit
+from Hatlab_DataProcessing.helpers.unit_converter import rounder
 
 
-plt.close("all")
+
 
 def dressed_hyb_freq(fb, f0, g):
     """
@@ -128,6 +127,8 @@ class HybridFreq(Fit):
 
 if __name__ == "__main__":
     from anti_corssing import hybridize_freq
+
+    # plt.close("all")
 
     """ ------- create some fake data ---------- """
     biasList = np.linspace(-3, 3, 501)
