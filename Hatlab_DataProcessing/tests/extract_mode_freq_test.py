@@ -75,3 +75,10 @@ print(result.params)
 result.plot(x_data)
 result.print()
 
+plt.figure()
+plt.plot(f_s, mode_freqs[0], "*")
+plt.plot(f_s[:-1], result.lmfit_result.best_fit)
+
+
+
+

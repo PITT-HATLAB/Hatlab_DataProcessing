@@ -12,7 +12,7 @@ plt.close("all")
 def dressed_hyb_freq(fb, f0, g):
     """
     function that describes the relation between the dressed (measured) frequencies of two coupled modes.
-    assuming only one bare mode (mode b) is moving. Check notebook.hybridized_modes.nb for details.
+    assuming only one bare mode (mode 1) is moving. Check notebook.hybridized_modes.nb for details.
 
     :param fb: dressed frequency of the moving mode (e.g. measured snail mode freq)
     :param f0: bare frequency of the fixed-freq mode
@@ -34,10 +34,18 @@ class HybridFreqResult():
         self.f0 = self.params["f0"].value
         self.g = self.params["g"].value
 
-    def plot(self, x_data=None, plot_ax=None, **figArgs):
+    def plot_fphi(self, phi_list=None, plot_ax=None, **figArgs):
+        """
+        plot the data and fitting results as a function of external bias (or whatever horizontal
+        axis you swept, e.g. bias current).
+        This plots the data in the way that it was originally taken, and put the fitted curve on top
+        of the data, assuming the fitted curve has the same horizontal axis as the data.
+        But note that the horizontal axis here is not the independent variable for fitting.
+        """
+
         fa_fit = dressed_hyb_freq(self.fb, self.f0, self.g)
         fa_data = self.fa
-        x_data = np.arange(len(fa_data)) if x_data is None else x_data
+        phi_list = np.arange(len(fa_data)) if phi_list is None else phi_list
 
         if plot_ax is None:
             fig_args_ = dict(figsize=(8, 5))
@@ -46,14 +54,40 @@ class HybridFreqResult():
         else:
             ax = plot_ax
         ax.set_title(f"g = {self.g}")
-        ax.plot(x_data, fa_data, "*",  label="fa data")
-        ax.plot(x_data, fa_fit,  label="fa fit")
-        ax.plot(x_data, self.fb, label="fb data")
+        ax.plot(phi_list, self.fb, "*", label="fb data")
+        ax.plot(phi_list, fa_data, "*", label="fa data")
+        ax.plot(phi_list, fa_fit, label="fa fit")
         ax.legend()
         plt.show()
 
+    def plot_fafb(self, plot_ax=None, **figArgs):
+        """
+        plot one dressed mode frequency as a function of the other dressed mode frequency and the
+        fitted curve. This shows how the data was fitted.
+        """
+
+        fa_fit = dressed_hyb_freq(self.fb, self.f0, self.g)
+        fa_data = self.fa
+
+        if plot_ax is None:
+            fig_args_ = dict(figsize=(8, 5))
+            fig_args_.update(figArgs)
+            fig, ax = plt.subplots(1, 1, **fig_args_)
+        else:
+            ax = plot_ax
+        ax.set_title(f"g = {self.g}")
+        ax.plot(self.fb, fa_data, "*", label="data")
+        ax.plot(self.fb, fa_fit, label="fit")
+        ax.set_xlabel("fb")
+        ax.set_ylabel("fa")
+        ax.legend()
+        plt.show()
+
+
+
     def print(self):
         print(f'g/2pi : {rounder(self.g, 5)}+-{rounder(self.params["g"].stderr, 5)}')
+        print(f'f0 : {rounder(self.f0, 5)}+-{rounder(self.params["f0"].stderr, 5)}')
 
 
 
@@ -94,7 +128,8 @@ class HybridFreq(Fit):
 
 if __name__ == "__main__":
     from anti_corssing import hybridize_freq
-    # create some fake data
+
+    """ ------- create some fake data ---------- """
     biasList = np.linspace(-3, 3, 501)
     f0 = 3 # bare freq of the fixed freq mode
     f1 = - 0.31* biasList ** 2 + 6 # bare freq of the moving mode
@@ -103,29 +138,49 @@ if __name__ == "__main__":
     fb = freqs[0]  # dressed freq of the moving mode
     fa = freqs[1]   # dressed freq of the fixed freq mode
     plt.figure()
+    plt.title("example mode frequencies")
     plt.plot(biasList, fb, label="dressed b mode")
     plt.plot(biasList, fa, label="dressed a mode")
     plt.plot(biasList, f1, "--", label="bare b mode")
     plt.plot(biasList, [f0]*len(biasList), "--", label="bare a mode")
     plt.legend()
 
-    # add noise to data
-    data = freqs + (np.random.rand(*freqs.shape)- 0.5)*0.001
+    """---------- add noise to data ----------------"""
+    data = freqs + (np.random.rand(*freqs.shape)- 0.5)*0.0002
     # data[0][:100] = [np.nan] * 100
     # data[1][-100:] = [np.nan] * 100
     plt.figure()
+    plt.title("noisy example data")
     plt.plot(biasList, data[0, :])
     plt.plot(biasList, data[1, :])
     plt.plot(biasList, dressed_hyb_freq(data[0, :], f0, g)) # double-check our function
 
 
-    # fitting
+    """ --------- fitting ------------- """
     fit = HybridFreq(data[0], data[1])
     result = fit.run(nan_policy="omit")
-    print("guess:", fit.guess(fit.coordinates, fit.data))
-    print("fit:", result.params)
-    result.plot(biasList)
+    # print("guess params:", fit.guess(fit.coordinates, fit.data))
+    # print("fit params:", result.params)
 
+    """
+    plot one dressed mode frequency as a function of the other dressed mode frequency and the
+    fitted curve. This shows how the data was fitted.
+    """
+    result.plot_fafb()
+
+    """
+    plot the data and fitting results as a function of external bias (or whatever horizontal
+    axis you swept, e.g. bias current).
+    This plots the data in the way that it was originally taken, and put the fitted curve on top
+    of the data, assuming the fitted curve has the same horizontal axis as the data.
+    But note that the horizontal axis here is not the independent variable for fitting.
+    """
+    result.plot_fphi(biasList)
+
+    """
+    print result
+    """
+    result.print()
 
 
 
