@@ -212,7 +212,7 @@ class Gaussian2D_3Blob(Gaussian2D_Base):
         return z
 
 
-def histo2DFitting(bufi, bufq, bins=101, histRange=None, blobs=2, guessParams={}):
+def histo2DFitting(bufi, bufq, bins=101, histRange=None, blobs=2, maskIndex=None, guessParams={}):
     if histRange is None:
         max_val = np.max(np.abs([bufi, bufq]))
         histRange = [[-max_val, max_val], [-max_val, max_val]]
@@ -220,13 +220,13 @@ def histo2DFitting(bufi, bufq, bins=101, histRange=None, blobs=2, guessParams={}
     z_ = z_.T
     xd, yd = np.meshgrid(x_[:-1], y_[:-1])
     if blobs == 1:
-        gau2DFit = Gaussian2D_1Blob((xd, yd), z_)
+        gau2DFit = Gaussian2D_1Blob((xd, yd), z_, maskIndex=maskIndex)
         fitResult = gau2DFit.run(params=guessParams)
     elif blobs == 2:
-        gau2DFit = Gaussian2D_2Blob((xd, yd), z_)
+        gau2DFit = Gaussian2D_2Blob((xd, yd), z_, maskIndex=maskIndex)
         fitResult = gau2DFit.run(params=guessParams)
     elif blobs == 3:
-        gau2DFit = Gaussian2D_3Blob((xd, yd), z_)
+        gau2DFit = Gaussian2D_3Blob((xd, yd), z_, maskIndex=maskIndex)
         fitResult = gau2DFit.run(params=guessParams)
     else:
         raise NotImplementedError

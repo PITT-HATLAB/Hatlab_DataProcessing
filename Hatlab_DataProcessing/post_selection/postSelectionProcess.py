@@ -343,6 +343,7 @@ class PostSelectionData_gef(PostSelectionData_Base):
 
         self.gefLocation = gefLocation
         self.g_x, self.g_y, self.e_x, self.e_y, self.f_x, self.f_y, self.g_r, self.e_r, self.f_r = self.gefLocation
+        self.histBins = histBins
 
         # find the circumcenter of the three states
         d_ = 2 * (self.g_x * (self.e_y - self.f_y) + self.e_x * (self.f_y - self.g_y)
@@ -402,7 +403,11 @@ class PostSelectionData_gef(PostSelectionData_Base):
                                          plot, "f", plot_ax)
         return mask
 
-    def cal_g_pct(self, plot=True, plot_ax=None):
+    def cal_g_pct(self, plot=True, plot_ax=None, progress=False):
+        if progress:
+            ii_ = tqdm(range(len(self.I_vld)), desc="calculating g_pct")
+        else:
+            ii_ = range(len(self.I_vld))
         g_pct_list = []
         for i in range(len(self.I_vld)):
             I_v = self.I_vld[i]
@@ -446,7 +451,11 @@ class PostSelectionData_gef(PostSelectionData_Base):
             ax.plot([self.ext_center_x], [self.ext_center_y], "*")
         return np.array(g_pct_list)
 
-    def cal_gef_pct(self, plot=True, plot_ax=None):
+    def cal_gef_pct(self, plot=True, plot_ax=None, progress=False):
+        if progress:
+            ii_ = tqdm(range(len(self.I_vld)), desc="calculating gef_pct")
+        else:
+            ii_ = range(len(self.I_vld))
         g_pct_list = []
         e_pct_list = []
         f_pct_list = []
@@ -590,6 +599,62 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
     Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
 
     return g_pct, I_vld, Q_vld, selData
+
+
+def simpleSelection_1Qgef(Idata, Qdata, gefLocation=None, plot=True,
+                         fitGuess={}, stateMask: int = None, histBins=201, histRange=None,
+                         selCircleSize=1, xData:dict=None, progress=False):
+    """simple post selection function that selects data points where the qubit is in g
+        state in the first MSMT of each two MSMTs when the f state needs to be considered in fitting.
+
+        :param Idata: I data, nd array, first axes should be nReps
+        :param Qdata: Q data, nd array, first axes should be nReps
+        :param gefLocation:  [g_x, g_y, e_x, e_y, f_x, f_y, g_r, e_r, f_r]
+        :param plot: plot fitting and selection data
+        :param fitGuess:  guess parameter for gau blob fitting
+        :param stateMask: guessed size of each blob, in unit of number of bins
+        :param histBins: number of bins for histogram
+        :param histRange: range of histogram
+        :param selCircleSize: size of the selection circle, in unit of g_r
+                            (sigma of g state Gaussian blob)
+        :param xData: dictionary that contains the variables that are swept in the experiment.
+                        e.g : {"amp": np.linspace(0,1 101) }
+
+        :returns: g_pct, I_vld, Q_vld, selData
+
+    """
+    original_shape, Idata = flatten_sweep_axes(Idata) # todo: this should be moved to the PostSelectionData classes
+    _, Qdata = flatten_sweep_axes(Qdata)
+
+    selData = PostSelectionData_gef(Idata, Qdata, [1, 0], gefLocation, False,
+                                   fitGuess, stateMask, histBins, histRange)
+
+    fit_location = True if gefLocation is None else False
+
+    if plot:
+        fig, (ax1, ax2, ax3) = plt.subplots(ncols=3, figsize=(18,5))
+        if fit_location:
+            selData.stateFitResult.plot(ax1)
+        selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=plot, plot_ax=ax2)
+        I_vld, Q_vld = selData.sel_data(selMask, plot=False, progress=progress)
+        g_pct, e_pct, f_pct = selData.cal_gef_pct(plot=plot, plot_ax=ax3, progress=progress)
+        selData.sliderPlotSelectedData(xData)
+
+
+    else:
+        selMask = selData.mask_g_by_circle(sel_idx=0, circle_size=selCircleSize, plot=False)
+        I_vld, Q_vld = selData.sel_data(selMask, plot=False, progress=progress)
+        g_pct, e_pct, f_pct = selData.cal_gef_pct(plot=False, progress=progress)
+
+    # reshape results back to the shape of the input sweep axes
+    # todo: these should be moved to the PostSelectionData classes
+    final_shape = list((*original_shape[1:-1],
+                          int(original_shape[-1] * np.sum(selData.selPattern) / len(selData.selPattern))))
+    g_pct = g_pct.reshape(*final_shape)
+    I_vld = np.array(I_vld, dtype=object).reshape(*final_shape, -1)
+    Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
+
+    return [g_pct, e_pct, f_pct], I_vld, Q_vld, selData
 
 
 
