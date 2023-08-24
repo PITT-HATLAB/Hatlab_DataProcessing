@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import h5py
 from matplotlib.animation import FuncAnimation
+import warnings
 
 
 def flatten_ragged_list(ragged_list):
@@ -46,7 +47,7 @@ def _indexData(data: Union[List, np.array], dim: Union[List, np.array]):
 
 
 def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
-           axes_dict: dict, callback: Callable = None, adaptiveRange=False, **hist2dArgs) -> List[Slider]:
+           axes_dict: dict, callback: Callable = None, adaptiveRange=False, logPlot=False, maxVal = None, **hist2dArgs) -> List[Slider]:
     """Create a slider plot widget. The caller needs to maintain a reference to
     the returned Slider objects to keep the widget activate
 
@@ -62,7 +63,8 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
         pass
 
     hist2dArgs["bins"] = hist2dArgs.get("bins", 101)
-    maxVal = np.max(np.abs([flatten_ragged_list(data_I), flatten_ragged_list(data_Q)]))
+    if maxVal is None:
+        maxVal = np.max(np.abs([flatten_ragged_list(data_I), flatten_ragged_list(data_Q)]))
     hist2dArgs["range"] = hist2dArgs.get("range", [[-maxVal, maxVal], [-maxVal, maxVal]])
 
     # initial figure
@@ -76,10 +78,15 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
     if adaptiveRange:
         hist2dArgs.pop("range")
         histo_range_ = ((min(dataI0), max(dataI0)), (min(dataQ0), max(dataQ0)))
-        plt.hist2d(dataI0, dataQ0, range=histo_range_, **hist2dArgs)
+        hist, x, y = np.histogram2d(dataI0, dataQ0, range=histo_range_, **hist2dArgs)
     else:
-        plt.hist2d(dataI0, dataQ0, **hist2dArgs)
-
+        hist, x, y = np.histogram2d(dataI0, dataQ0, **hist2dArgs)
+    if logPlot:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            plt.pcolor(x, y, np.log(hist))
+    else:
+        plt.pcolor(x, y, hist)
     ax = plt.gca()
     ax.set_aspect(1)
     # generate sliders
@@ -107,9 +114,15 @@ def sliderHist2d(data_I: Union[List, np.array], data_Q: Union[List, np.array],
         # ax.hist2d(newI, newQ, **hist2dArgs)
         if adaptiveRange:
             histo_range_ = ((min(newI), max(newI)), (min(newQ), max(newQ)))
-            ax.hist2d(newI, newQ, range=histo_range_, bins=hist2dArgs["bins"])
+            hist, x, y = np.histogram2d(newI, newQ, range=histo_range_, bins=hist2dArgs["bins"])
         else:
-            ax.hist2d(newI, newQ, **hist2dArgs)
+            hist, x, y = np.histogram2d(newI, newQ, **hist2dArgs)
+        if logPlot:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore")
+                ax.pcolor(x,y,np.log(hist))
+        else:
+            ax.pcolor(x, y, hist)
         # print callback result on top of figure
         if callback is not None:
             result = callback(newI, newQ, *ax_val_list)
