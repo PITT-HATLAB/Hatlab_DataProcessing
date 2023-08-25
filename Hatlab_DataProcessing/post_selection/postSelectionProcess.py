@@ -534,6 +534,247 @@ class PostSelectionData_gef(PostSelectionData_Base):
         return stateForEachMsmt
 
 
+class PostSelectionData_fast(PostSelectionData_Base):
+    """ This post selection class does not use any kind of fitting and so is quite fast. It detects
+    arbitary numbers of states. Notably one can use one dataset to generate the mask, while selecting for traces on another
+    dataset, which is useful for detecting states with only a small number of counts.
+
+    author: Boris Mesits 202308
+
+    :param data_I:  I data
+    :param data_Q:  Q data
+    :param msmtInfoDict: dictionary from the measurement information yaml file
+    :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
+        in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
+        used for selection and the third one is experiment point.
+    :param mask_data:  3 tuple containing x, y, and histogram counts for generating the state masks. If none is
+                        provided, a new histogram will be made from the inputs data_I and data_Q
+    :param num_states: You get to specify how many states will be detected
+    :params bins: bins of mask histogram if not exteranlly specified
+    :params radius: minimum spacing of adjacent states (measured in histogram bin widths)
+    :params select_radius: radius of the circle mask used to select the number of states
+    """
+
+    def __init__(self, data_I: np.array, data_Q: np.array, msmtInfoDict: dict = None, selPattern: List = [1, 0],
+                 mask_I=None, mask_Q=None, num_states=2, bins=101, radius=1, select_radius=1):
+        super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
+
+        self.num_states = num_states
+        self.radius = radius
+        self.stateDict = {}
+        self.select_radius = select_radius
+
+        # Only use a dedicated histogram to generate mask if specified, otherwise just use provided data to generate histogram.
+        if mask_I is None or mask_Q is None:
+
+            self.mask_I = data_I
+            self.mask_Q = data_Q
+
+        else:
+            self.mask_I = mask_I
+            self.mask_Q = mask_Q
+
+        hist, x, y = np.histogram2d(self.mask_I.flatten(), self.mask_Q.flatten(), bins=(bins, bins))
+
+        self.mask_hist = hist
+        self.mask_x = x
+        self.mask_y = y
+
+        self.identify_histogram_states()
+
+    def identify_histogram_states(self):
+
+        idxx, idxy, heights, max_neighbors = self.peakfinder_2d(self.mask_hist, self.radius, self.num_states)
+
+        x = self.mask_x[idxx]
+        y = self.mask_y[idxy]
+
+        # a quick reordering routine, which picks g as the tallest, and then reorders based on angle from mid point
+        # not very versatile, in general you may need to hand pick states or coherently prepare, no functionality for that yet
+        x_centered = x - np.mean(x)
+        y_centered = y - np.mean(y)
+
+        theta = np.angle(x_centered + 1j * y_centered)
+        theta = theta - theta[0]
+        theta[np.where(theta < 0)] = 2 * np.pi + theta[np.where(theta < 0)]
+
+        order = np.argsort(theta)
+
+        x = x[order]
+        y = y[order]
+        heights = heights[order]
+
+        for i in range(0, self.num_states):
+            self.stateDict[i] = {"x": x[i],
+                                 "y": y[i]}
+
+        # for now, doing a cheap guess of the gaussian width (sigma) from the minimum distance between states
+        distances = np.zeros([self.num_states, self.num_states])
+
+        for i in range(0, self.num_states):
+            for j in range(0, self.num_states):
+                distances[i, j] = np.sqrt((self.stateDict[i]['x'] - self.stateDict[j]['x']) ** 2 + (
+                            self.stateDict[i]['y'] - self.stateDict[j]['y']) ** 2)
+
+        self.distances = distances
+
+        min_distance = np.sort(distances.flatten())[self.num_states]
+
+        for i in range(0, self.num_states):
+            self.stateDict[i]['r'] = min_distance / 2 * self.select_radius
+            # %TODO make this better
+
+    def classify_points(self, x_points, y_points, x_peaks, y_peaks):
+
+        distances = np.zeros([len(x_points), len(x_peaks)])
+
+        for i in range(0, len(x_peaks)):
+            distances[:, i] = np.sqrt((x_points - x_peaks[i]) ** 2 + (y_points - y_peaks[i]) ** 2)
+
+        states = np.argsort(distances, axis=1)[:, 0]
+
+        return states
+
+    def peakfinder_2d(self, zz, radius, num_peaks):
+        '''
+        The fastest way I can think of without a just-in-time compiler. You can imagine that each point checks for
+        neighboring points (radius r) and calls itself a peak if it's bigger than all its neighbors, not including
+        edges. It's done with array slicing rather than explicit loop.
+
+        Faster than looping to each point in the 2d array and comparing, but not way faster.
+
+        :param zz: 2d data
+        :param radius: Distance to check for higher neighbors
+        :param num_peaks: Only take the largest of the detected peaks (largest value).
+        '''
+
+        neighbors = []
+
+        for i in range(0, radius * 2):
+            for j in range(0, radius * 2):
+
+                if (i != radius or j != radius):
+                    neighbor = zz[i:-radius * 2 + i,
+                               j:-radius * 2 + j]  # not necessarily nearest neighbor if radius > 1
+
+                    neighbors.append(neighbor)
+
+            neighbor = zz[i:-radius * 2 + i, radius * 2:]
+
+            neighbors.append(neighbor)
+
+        for j in range(0, radius * 2):
+            neighbor = zz[radius * 2:, j:-radius * 2 + j]
+
+            neighbors.append(neighbor)
+
+        neighbor = zz[radius * 2:, radius * 2:]
+
+        neighbors.append(neighbor)
+
+        neighbors = np.array(neighbors)
+
+        max_neighbors = zz * 0 + np.max(zz)
+        max_neighbors[radius:-radius, radius:-radius] = np.max(neighbors, axis=0)
+
+        idx = np.where(max_neighbors < zz)  # identifies the peaks (i.e., finds their indices)
+
+        idxx = idx[0]
+        idxy = idx[1]
+
+        heights = zz[idxx, idxy]
+
+        order = np.flip(np.argsort(heights))
+
+        idxx = idxx[order]
+        idxy = idxy[order]
+
+        # only takes the tallest peaks, according to the requested number of states
+
+        if num_peaks != None:
+            idxx = idxx[0:num_peaks]
+            idxy = idxy[0:num_peaks]
+            heights = heights[0:num_peaks]
+
+        return idxx, idxy, heights, max_neighbors
+
+    def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1,
+                                   plot: Union[bool, int] = False, plot_ax=None):
+        mask = self.mask_state_by_circle(sel_idx, self.stateDict[stateLabel]['x'], self.stateDict[stateLabel]['y'],
+                                         self.stateDict[stateLabel]['r'], plot, stateLabel, plot_ax=plot_ax)
+        return mask
+
+    def cal_state_pct(self, calStateLabel, plot=True, res_plot_ax=None):
+        '''
+        Calculate state population probablity.
+        '''
+
+        I_peaks = []
+        Q_peaks = []
+
+        for i in range(0, self.num_states):
+            I_peaks.append(self.stateDict[i]['x'])
+            Q_peaks.append(self.stateDict[i]['y'])
+
+        I_peaks = np.array(I_peaks)
+        Q_peaks = np.array(Q_peaks)
+
+        state_pct_list = []
+
+        all_states = []
+
+        for i in range(len(self.I_vld)):
+            I_v = self.I_vld[i]
+            Q_v = self.Q_vld[i]
+
+            n_pts = len(I_v)
+
+            states = self.classify_points(I_v, Q_v, I_peaks, Q_peaks)
+
+            num_in_state = len(np.where(states == calStateLabel)[0])
+
+            state_pct_list.append(num_in_state / n_pts)
+
+            all_states.append(states)
+
+        if plot:
+
+            bins = 101
+
+            if res_plot_ax == None:
+                fig, ax = plt.subplots(figsize=(7, 7))
+                fig.suptitle('Result after selection')
+            else:
+
+                fig = res_plot_ax.get_figure()
+                ax = res_plot_ax
+
+            hist, x_edges, y_edges = np.histogram2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=bins,
+                                                    range=self.msmtInfoDict['histRange'])
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                ax.pcolormesh(x_edges, y_edges, 10 * np.log10(hist.T), cmap='magma')
+
+            histRange = self.msmtInfoDict['histRange']
+
+            bins = 301
+
+            x = np.linspace(histRange[0][0], histRange[0][1], bins)
+            y = np.linspace(histRange[1][0], histRange[1][1], bins)
+
+            xx, yy = np.meshgrid(x, y)
+
+            states_for_plotting = self.classify_points(xx.flatten(), yy.flatten(), I_peaks, Q_peaks)
+            states_for_plotting = np.reshape(states_for_plotting, np.shape(xx))
+
+            ax.contour(x, y, states_for_plotting, colors='k')
+
+            ax.text(I_peaks[calStateLabel], Q_peaks[calStateLabel], str(calStateLabel), color='k',
+                    horizontalalignment='center', verticalalignment='center')
+            ax.set_aspect(1)
+
+        return state_pct_list
+
 def flatten_sweep_axes(data):
     """
     flatten an abitrary nd array data into a 2d array (to be used in post selection funcitons, where the data shape must
