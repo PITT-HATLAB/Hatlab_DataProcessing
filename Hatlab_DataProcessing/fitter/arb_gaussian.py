@@ -73,7 +73,15 @@ def peakfinder_2d(zz, radius, num_peaks):
         idxy = idxy[0:num_peaks]
         heights = heights[0:num_peaks]
 
-    return idxx, idxy, heights
+
+    if True:
+        plt.figure()
+        plt.pcolor(zz)
+        idxx, idxy, max_neighbors = peakfinder_2d(zz, radius=6, threshold=10)
+        plt.scatter(idxx, idxy, color='r')
+
+    return idxx, idxy, heights, max_neighbors
+
 
 
 def fit_arb_gaussians(x, y, zz, idxx, idxy, heights):

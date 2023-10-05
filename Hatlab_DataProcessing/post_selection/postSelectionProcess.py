@@ -543,7 +543,6 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
     :param data_I:  I data
     :param data_Q:  Q data
-    :param msmtInfoDict: dictionary from the measurement information yaml file
     :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
         in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
         used for selection and the third one is experiment point.
@@ -555,14 +554,15 @@ class PostSelectionData_fast(PostSelectionData_Base):
     :params select_radius: radius of the circle mask used to select the number of states
     """
 
-    def __init__(self, data_I: np.array, data_Q: np.array, msmtInfoDict: dict = None, selPattern: List = [1, 0],
-                 mask_I=None, mask_Q=None, num_states=2, bins=101, radius=1, select_radius=1):
-        super().__init__(data_I, data_Q, msmtInfoDict, selPattern)
+    def __init__(self, data_I: np.array, data_Q: np.array, selPattern: List = [1, 0],
+                 mask_I=None, mask_Q=None, num_states=2, bins=101, radius=1, select_radius=1, reorder=False):
+        super().__init__(data_I, data_Q, selPattern)
 
         self.num_states = num_states
         self.radius = radius
         self.stateDict = {}
         self.select_radius = select_radius
+        self.reorder=reorder
 
         # Only use a dedicated histogram to generate mask if specified, otherwise just use provided data to generate histogram.
         if mask_I is None or mask_Q is None:
@@ -584,29 +584,37 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
     def identify_histogram_states(self):
 
+<<<<<<< Updated upstream
         idxx, idxy, heights, max_neighbors = peakfinder_2d(self.mask_hist, self.radius, self.num_states)
+=======
+        idxx, idxy, heights, max_neighbors = self.peakfinder_2d(self.mask_hist, self.radius, self.num_states, add_noise=True)
+>>>>>>> Stashed changes
 
         x = self.mask_x[idxx]
         y = self.mask_y[idxy]
 
         # a quick reordering routine, which picks g as the tallest, and then reorders based on angle from mid point
         # not very versatile, in general you may need to hand pick states or coherently prepare, no functionality for that yet
-        x_centered = x - np.mean(x)
-        y_centered = y - np.mean(y)
-
-        theta = np.angle(x_centered + 1j * y_centered)
-        theta = theta - theta[0]
-        theta[np.where(theta < 0)] = 2 * np.pi + theta[np.where(theta < 0)]
-
-        order = np.argsort(theta)
-
-        x = x[order]
-        y = y[order]
-        heights = heights[order]
+        
+        if self.reorder == True:
+        
+            x_centered = x - np.mean(x)
+            y_centered = y - np.mean(y)
+    
+            theta = np.angle(x_centered + 1j * y_centered)
+            theta = theta - theta[0]
+            theta[np.where(theta < 0)] = 2 * np.pi + theta[np.where(theta < 0)]
+    
+            order = np.argsort(theta)
+    
+            x = x[order]
+            y = y[order]
+            heights = heights[order]
 
         for i in range(0, self.num_states):
             self.stateDict[i] = {"x": x[i],
-                                 "y": y[i]}
+                                 "y": y[i],
+                                 "height": heights[i]}
 
         # for now, doing a cheap guess of the gaussian width (sigma) from the minimum distance between states
         distances = np.zeros([self.num_states, self.num_states])
@@ -635,7 +643,77 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
         return states
 
+<<<<<<< Updated upstream
 
+=======
+    def peakfinder_2d(self, zz, radius, num_peaks, add_noise=False):
+        '''
+        The fastest way I can think of without a just-in-time compiler. You can imagine that each point checks for
+        neighboring points (radius r) and calls itself a peak if it's bigger than all its neighbors, not including
+        edges. It's done with array slicing rather than explicit loop.
+
+        Faster than looping to each point in the 2d array and comparing, but not way faster.
+
+        :param zz: 2d data
+        :param radius: Distance to check for higher neighbors
+        :param num_peaks: Only take the largest of the detected peaks (largest value).
+        '''
+
+        neighbors = []
+
+        for i in range(0, radius * 2):
+            for j in range(0, radius * 2):
+
+                if (i != radius or j != radius):
+                    neighbor = zz[i:-radius * 2 + i,
+                               j:-radius * 2 + j]  # not necessarily nearest neighbor if radius > 1
+
+                    neighbors.append(neighbor)
+
+            neighbor = zz[i:-radius * 2 + i, radius * 2:]
+
+            neighbors.append(neighbor)
+
+        for j in range(0, radius * 2):
+            neighbor = zz[radius * 2:, j:-radius * 2 + j]
+
+            neighbors.append(neighbor)
+
+        neighbor = zz[radius * 2:, radius * 2:]
+
+        neighbors.append(neighbor)
+
+        neighbors = np.array(neighbors)
+
+        max_neighbors = zz * 0 + np.max(zz)
+        max_neighbors[radius:-radius, radius:-radius] = np.max(neighbors, axis=0)
+        
+        noise_amplitude = add_noise*np.max(zz)*1e-9
+
+        idx = np.where(max_neighbors < zz + np.random.random(np.shape(zz))*noise_amplitude )  # identifies the peaks (i.e., finds their indices)
+        # the noise is there as a tiebreaker if two adjacent point have the same number of counts
+        # we could take the peak to be the average, but really this is not a fitting function, only a rough identifier of location
+
+        idxx = idx[0]
+        idxy = idx[1]
+
+        heights = zz[idxx, idxy]
+
+        order = np.flip(np.argsort(heights))
+
+        idxx = idxx[order]
+        idxy = idxy[order]
+        heights = heights[order]
+
+        # only takes the tallest peaks, according to the requested number of states
+
+        if num_peaks != None:
+            idxx = idxx[0:num_peaks]
+            idxy = idxy[0:num_peaks]
+            heights = heights[0:num_peaks]
+
+        return idxx, idxy, heights, max_neighbors
+>>>>>>> Stashed changes
 
     def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1,
                                    plot: Union[bool, int] = False, plot_ax=None):
@@ -689,12 +767,12 @@ class PostSelectionData_fast(PostSelectionData_Base):
                 ax = res_plot_ax
 
             hist, x_edges, y_edges = np.histogram2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=bins,
-                                                    range=self.msmtInfoDict['histRange'])
+                                                    range=self.histRange)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 ax.pcolormesh(x_edges, y_edges, 10 * np.log10(hist.T), cmap='magma')
 
-            histRange = self.msmtInfoDict['histRange']
+            histRange = self.histRange
 
             bins = 301
 
@@ -749,6 +827,8 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
     """
     original_shape, Idata = flatten_sweep_axes(Idata) # todo: this should be moved to the PostSelectionData classes
     _, Qdata = flatten_sweep_axes(Qdata)
+
+    print("post selection shape: ", Idata.shape, Qdata.shape)
 
     selData = PostSelectionData_ge(Idata, Qdata, [1, 0], geLocation, False,
                                    fitGuess, stateMask, histBins, histRange)
@@ -838,31 +918,31 @@ def simpleSelection_1Qgef(Idata, Qdata, gefLocation=None, plot=True,
 
 
 
-
-if __name__ == "__main__":
-    directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
-    # directory = r'D:\Lab\Code\PostSelProcess_dev\\'
-    fileName = '10PiPulseTest'
-    f = h5py.File(directory + fileName, 'r')
-    Idata = np.real(f["rawData"])[:-1]
-    Qdata = np.imag(f["rawData"])[:-1]
-
-    t0 = time.time()
-    IQsel = PostSelectionData_gef(Idata, Qdata,
-                                  gefLocation=[-9000, -9500, -11000, -1500, -500, -700, 3000, 3000,
-                                               3000])
-
-    # mask0 = IQsel.mask_g_by_line(0, line_shift=0, plot=True)
-    mask0 = IQsel.mask_g_by_circle(0, circle_size=1, plot=True)
-    I_vld, Q_vld = IQsel.sel_data(mask0, plot=True)
-    # I_avg, Q_avg = fdp.average_data(I_vld, Q_vld, axis0_type="xData")
-    # I_rot, Q_rot = fdp.rotateData(I_avg, Q_avg, plot=0)
-    g_pct = IQsel.cal_g_pct()
-
-    xData = np.arange(10)
-    # plt.figure(figsize=(7, 7))
-    # plt.plot(xData, I_avg)
-    plt.figure(figsize=(7, 7))
-    plt.plot(xData, g_pct)
-
-    print("time: ", time.time() - t0)
+#
+# if __name__ == "__main__":
+#     directory = r'N:\Data\Tree_3Qubits\QCSWAP\Q3C3\20210111\\'
+#     # directory = r'D:\Lab\Code\PostSelProcess_dev\\'
+#     fileName = '10PiPulseTest'
+#     f = h5py.File(directory + fileName, 'r')
+#     Idata = np.real(f["rawData"])[:-1]
+#     Qdata = np.imag(f["rawData"])[:-1]
+#
+#     t0 = time.time()
+#     IQsel = PostSelectionData_gef(Idata, Qdata,
+#                                   gefLocation=[-9000, -9500, -11000, -1500, -500, -700, 3000, 3000,
+#                                                3000])
+#
+#     # mask0 = IQsel.mask_g_by_line(0, line_shift=0, plot=True)
+#     mask0 = IQsel.mask_g_by_circle(0, circle_size=1, plot=True)
+#     I_vld, Q_vld = IQsel.sel_data(mask0, plot=True)
+#     # I_avg, Q_avg = fdp.average_data(I_vld, Q_vld, axis0_type="xData")
+#     # I_rot, Q_rot = fdp.rotateData(I_avg, Q_avg, plot=0)
+#     g_pct = IQsel.cal_g_pct()
+#
+#     xData = np.arange(10)
+#     # plt.figure(figsize=(7, 7))
+#     # plt.plot(xData, I_avg)
+#     plt.figure(figsize=(7, 7))
+#     plt.plot(xData, g_pct)
+#
+#     print("time: ", time.time() - t0)
