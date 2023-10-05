@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import h5py
 from tqdm import tqdm
+from Hatlab_DataProcessing.fitter.arb_gaussian import classify_point, peakfinder_2d
 
 
 
@@ -584,7 +585,7 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
     def identify_histogram_states(self):
 
-        idxx, idxy, heights, max_neighbors = self.peakfinder_2d(self.mask_hist, self.radius, self.num_states)
+        idxx, idxy, heights, max_neighbors = peakfinder_2d(self.mask_hist, self.radius, self.num_states)
 
         x = self.mask_x[idxx]
         y = self.mask_y[idxy]
@@ -635,68 +636,7 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
         return states
 
-    def peakfinder_2d(self, zz, radius, num_peaks):
-        '''
-        The fastest way I can think of without a just-in-time compiler. You can imagine that each point checks for
-        neighboring points (radius r) and calls itself a peak if it's bigger than all its neighbors, not including
-        edges. It's done with array slicing rather than explicit loop.
 
-        Faster than looping to each point in the 2d array and comparing, but not way faster.
-
-        :param zz: 2d data
-        :param radius: Distance to check for higher neighbors
-        :param num_peaks: Only take the largest of the detected peaks (largest value).
-        '''
-
-        neighbors = []
-
-        for i in range(0, radius * 2):
-            for j in range(0, radius * 2):
-
-                if (i != radius or j != radius):
-                    neighbor = zz[i:-radius * 2 + i,
-                               j:-radius * 2 + j]  # not necessarily nearest neighbor if radius > 1
-
-                    neighbors.append(neighbor)
-
-            neighbor = zz[i:-radius * 2 + i, radius * 2:]
-
-            neighbors.append(neighbor)
-
-        for j in range(0, radius * 2):
-            neighbor = zz[radius * 2:, j:-radius * 2 + j]
-
-            neighbors.append(neighbor)
-
-        neighbor = zz[radius * 2:, radius * 2:]
-
-        neighbors.append(neighbor)
-
-        neighbors = np.array(neighbors)
-
-        max_neighbors = zz * 0 + np.max(zz)
-        max_neighbors[radius:-radius, radius:-radius] = np.max(neighbors, axis=0)
-
-        idx = np.where(max_neighbors < zz)  # identifies the peaks (i.e., finds their indices)
-
-        idxx = idx[0]
-        idxy = idx[1]
-
-        heights = zz[idxx, idxy]
-
-        order = np.flip(np.argsort(heights))
-
-        idxx = idxx[order]
-        idxy = idxy[order]
-
-        # only takes the tallest peaks, according to the requested number of states
-
-        if num_peaks != None:
-            idxx = idxx[0:num_peaks]
-            idxy = idxy[0:num_peaks]
-            heights = heights[0:num_peaks]
-
-        return idxx, idxy, heights, max_neighbors
 
     def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1,
                                    plot: Union[bool, int] = False, plot_ax=None):
