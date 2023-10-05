@@ -73,7 +73,7 @@ def peakfinder_2d(zz, radius, num_peaks):
         idxy = idxy[0:num_peaks]
         heights = heights[0:num_peaks]
 
-    return idxx, idxy, heights, max_neighbors
+    return idxx, idxy, heights
 
 
 def fit_arb_gaussians(x, y, zz, idxx, idxy, heights):

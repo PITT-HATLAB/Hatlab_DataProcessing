@@ -16,7 +16,6 @@ from tqdm import tqdm
 from Hatlab_DataProcessing.fitter.arb_gaussian import classify_point, peakfinder_2d
 
 
-
 from Hatlab_DataProcessing.fitter.gaussian_2d import Gaussian2D_2Blob, Gaussian2D_3Blob
 from Hatlab_DataProcessing.slider_plot.sliderPlot import sliderHist2d
 
