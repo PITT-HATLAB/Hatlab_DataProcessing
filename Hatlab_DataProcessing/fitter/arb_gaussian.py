@@ -12,7 +12,7 @@ You can think of three independent steps implemented here.
 3) Classification: given previous information, how to assign a new point on the histogram to a peak 
 '''
 
-def peakfinder_2d(zz, radius, num_peaks):
+def peakfinder_2d(zz, radius, num_peaks, plot=False):
     '''
     The fastest way I can think of without a just-in-time compiler. You can imagine that each point checks for
     neighboring points (radius r) and calls itself a peak if it's bigger than all its neighbors, not including
@@ -72,6 +72,12 @@ def peakfinder_2d(zz, radius, num_peaks):
         idxx = idxx[0:num_peaks]
         idxy = idxy[0:num_peaks]
         heights = heights[0:num_peaks]
+
+    if plot:
+        plt.figure()
+        plt.pcolor(zz)
+        idxx, idxy, max_neighbors = peakfinder_2d(zz, radius=6, threshold=10)
+        plt.scatter(idxx, idxy, color='r')
 
     return idxx, idxy, heights, max_neighbors
 
