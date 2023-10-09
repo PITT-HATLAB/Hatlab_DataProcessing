@@ -25,6 +25,8 @@ def peakfinder_2d(zz, radius, num_peaks, plot=False):
     :param num_peaks: Only take the largest of the detected peaks (largest value).
     '''
 
+    zz *= 1 + 0.001*np.random.rand(np.shape(zz)[0],np.shape(zz)[1]) # tiebreaker
+    
     neighbors = []
 
     for i in range(0, radius * 2):
@@ -76,15 +78,14 @@ def peakfinder_2d(zz, radius, num_peaks, plot=False):
 
     if plot:
         plt.figure()
-        plt.pcolor(zz)
-        idxx, idxy, max_neighbors = peakfinder_2d(zz, radius=6, threshold=10)
+        plt.pcolor(zz.transpose())
         plt.scatter(idxx, idxy, color='r')
 
-    return idxx, idxy, heights, max_neighbors
+    return idxx, idxy, heights
 
 
 
-def fit_arb_gaussians(x, y, zz, idxx, idxy, heights):
+def fit_arb_gaussians(x, y, zz, idxx, idxy, heights, sigma, plot=False):
     NUM_PARAMS = 6
 
     def gaussians_2d(xx, yy, As, x0s, y0s, rs, skews, thetas):
@@ -131,52 +132,55 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights):
         ones = np.ones(len(idxx))
 
         if len(idxx) == 1:
-            initial_guess = np.array([heights, x[idxx], y[idxy], ones, ones / 10, ones / 10])
+            initial_guess = np.array([heights, x[idxx], y[idxy], sigma*ones, ones / 10, ones / 10])
 
         else:
 
             avg_dist = np.repeat(np.mean(np.sqrt(np.diff(x[idxx]) ** 2 + np.diff(y[idxy]) ** 2), axis=0), len(idxx))
 
-            initial_guess = np.array([heights, x[idxx], y[idxy], avg_dist / 10, ones / 10, ones / 10])
+            initial_guess = np.array([heights, x[idxx], y[idxy], sigma*ones, ones / 10, ones / 10])
 
         return initial_guess
 
     def make_bounds(initial_guess):
         initial_guess_flat = initial_guess.flatten()
-        print(initial_guess_flat)
+
         bounds = []
+
+        N = len(initial_guess_flat) // NUM_PARAMS
 
         for i in range(0, len(initial_guess_flat)):
 
-            if i % 6 == 0:  # peak height
-                bounds.append([initial_guess_flat[i] * 0.8, initial_guess_flat[i] * 1.2])
+            guess = initial_guess_flat[i]
 
-            if i % 6 == 1:  # x position
-                bounds.append([initial_guess_flat[i] * 0.9, initial_guess_flat[
-                    i] * 1.1])  # we already know the position pretty well, so narrow bounds
+            if i // N % 6 == 0:  # peak height
+                bounds.append([guess * 0.5, guess * 1.5])
 
-            if i % 6 == 2:  # y position
-                bounds.append([initial_guess_flat[i] * 0.9, initial_guess_flat[
-                    i] * 1.1])  # we already know the position pretty well, so narrow bounds
+            if i // N % 6 == 1:  # x position
+                bounds.append(
+                    [guess - sigma, guess + sigma])  # we already know the position pretty well, so narrow bounds
 
-            if i % 6 == 3:  # radius
-                bounds.append([0, 10000])
+            if i // N % 6 == 2:  # y position
+                bounds.append(
+                    [guess - sigma, guess + sigma])  # we already know the position pretty well, so narrow bounds
 
-            if i % 6 == 4:  # skew
-                bounds.append([0, 10])
+            if i // N % 6 == 3:  # radius
+                bounds.append([sigma * 0.1, sigma * 10])
 
-            if i % 6 == 5:  # theta
+            if i // N % 6 == 4:  # skew
+                bounds.append([0, 3])
+
+            if i // N % 6 == 5:  # theta
                 bounds.append([None, None])
 
-        print(bounds)
         return bounds
 
     initial_guess = make_initial_guess(x, y, idxx, idxy, heights)
-
+    xx, yy = np.meshgrid(x, y)
     bounds = make_bounds(initial_guess)
 
     # Perform the minimization
-    result = minimize(fit_cost, initial_guess.flatten(), args=(xx, yy, zz), method='Nelder-Mead')
+    result = minimize(fit_cost, initial_guess.flatten(), args=(xx, yy, zz), method='L-BFGS-B', tol=1e-8)
 
     # Extract the fitted parameters
     fitted_params = np.reshape(result.x, (NUM_PARAMS, len(result.x) // NUM_PARAMS))
@@ -186,7 +190,7 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights):
         fig, ax = plt.subplots(1, 1, figsize=(8, 7))
 
         # Plot the original data
-        ax.pcolor(x, y, data, cmap='viridis')
+        ax.pcolor(x, y, np.log(data), cmap='viridis')
         ax.set_title('Original Data')
 
         # Create a grid of (x, y) points for the fitted Gaussian model
@@ -200,7 +204,7 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights):
 
             # Plot the fitted Gaussian model
             CS = ax.contour(x, y, fitted_data, origin='lower', colors='w', levels=3, linestyles='-')
-            # CS = ax.contour(x,y,initial_data, origin='lower', colors='k', levels=3,linestyles='-')
+            CS = ax.contour(x,y,initial_data, origin='lower', colors='k', levels=3,linestyles='-')
             ax.set_title('Fitted Gaussian Model')
             ax.clabel(CS, inline=True, fontsize=10)
 

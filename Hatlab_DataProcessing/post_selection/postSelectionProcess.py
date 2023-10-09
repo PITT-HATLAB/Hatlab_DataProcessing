@@ -584,11 +584,9 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
     def identify_histogram_states(self):
 
-<<<<<<< Updated upstream
         idxx, idxy, heights, max_neighbors = peakfinder_2d(self.mask_hist, self.radius, self.num_states)
-=======
         idxx, idxy, heights, max_neighbors = self.peakfinder_2d(self.mask_hist, self.radius, self.num_states, add_noise=True)
->>>>>>> Stashed changes
+
 
         x = self.mask_x[idxx]
         y = self.mask_y[idxy]
@@ -643,9 +641,6 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
         return states
 
-<<<<<<< Updated upstream
-
-=======
     def peakfinder_2d(self, zz, radius, num_peaks, add_noise=False):
         '''
         The fastest way I can think of without a just-in-time compiler. You can imagine that each point checks for
@@ -713,7 +708,6 @@ class PostSelectionData_fast(PostSelectionData_Base):
             heights = heights[0:num_peaks]
 
         return idxx, idxy, heights, max_neighbors
->>>>>>> Stashed changes
 
     def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1,
                                    plot: Union[bool, int] = False, plot_ax=None):
