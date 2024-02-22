@@ -9,11 +9,20 @@ For example
 - squeezing degree and angle of coherent state
 '''
 
-def blob_info(idata, qdata, num_states, sigma, plot=False):
+def blob_info(idata, qdata, num_states, HEMT_sigma, plot=False):
 
-    range = np.max([np.max(np.abs(idata)),np.max(np.abs(qdata))])
+    range = np.sort(np.abs(idata + 1j*qdata))[-len(idata)//10]*1.2
+    print(range)
 
-    bins = int(np.sqrt(len(idata.flatten())))
+    # range = np.max([np.max(np.abs(idata)),np.max(np.abs(qdata))])
+
+    # bins = np.min([len(np.arange(-range,range,HEMT_sigma/5)),101])
+    bins = int(np.sqrt(len(idata)))
+
+    bins = 101
+
+    print(bins)
+
     zz, x, y = np.histogram2d(idata.flatten(), qdata.flatten(), bins=bins, range=[[-range,range],[-range,range]])
 
     zz = zz.copy()
@@ -25,17 +34,16 @@ def blob_info(idata, qdata, num_states, sigma, plot=False):
 
     dx = x[1]-x[0]
 
-    radius = int(sigma/dx)
+    radius = np.max([5,np.min([int(HEMT_sigma/dx),bins//2])])  # not too big, not too small
 
-    idxx, idxy, heights = peakfinder_2d(zz, np.min([radius,bins//2]), num_states)
+    idxx, idxy, heights = peakfinder_2d(zz, radius, num_states, plot=False)
+
+    sigma_guess = np.max([HEMT_sigma, dx*5])
+
+    fitted_params, ax = fit_arb_gaussians(x, y, zz.transpose(), idxx, idxy, heights, sigma_guess, plot=plot)
 
     if plot:
-        plt.figure()
-        plt.pcolor(x, y, np.log(zz.transpose()))
-        plt.colorbar()
-        plt.scatter(x[idxx], y[idxy], color='r')
-
-    fitted_params = fit_arb_gaussians(x, y, zz.transpose(), idxx, idxy, heights, sigma, plot=plot)
+        ax.scatter(x[idxx], y[idxy], color='r', alpha=0.5)
 
     return fitted_params
 

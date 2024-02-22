@@ -109,7 +109,9 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights, sigma, plot=False):
         xx_n = (xx - x0) * np.cos(theta) + (yy - y0) * np.sin(theta)
         yy_n = (yy - y0) * np.cos(theta) - (xx - x0) * np.sin(theta)
 
-        return A * np.exp(- xx_n ** 2 / (r * (skew + 1)) ** 2 - yy_n ** 2 / (r / (skew + 1)) ** 2)
+        return A * np.exp(- xx_n ** 2 / (r** 2)*(skew + 1) - yy_n ** 2 / (r** 2)/((skew + 1)) )
+
+
 
     def fit_cost(params, xx, yy, data):
         '''
@@ -180,10 +182,12 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights, sigma, plot=False):
     bounds = make_bounds(initial_guess)
 
     # Perform the minimization
-    result = minimize(fit_cost, initial_guess.flatten(), args=(xx, yy, zz), method='L-BFGS-B', tol=1e-8)
+    result = minimize(fit_cost, initial_guess.flatten(), args=(xx, yy, zz), method='BFGS', tol=1e-8)
 
     # Extract the fitted parameters
     fitted_params = np.reshape(result.x, (NUM_PARAMS, len(result.x) // NUM_PARAMS))
+
+    ax = None
 
     # Define a function to plot the data and the fitted Gaussian
     def plot_data_and_fit(data, fitted_params):
@@ -203,17 +207,21 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights, sigma, plot=False):
             # ax[1].set_title('Fitted Data')
 
             # Plot the fitted Gaussian model
-            CS = ax.contour(x, y, fitted_data, origin='lower', colors='w', levels=3, linestyles='-')
-            CS = ax.contour(x,y,initial_data, origin='lower', colors='k', levels=3,linestyles='-')
+            CS = ax.contour(x, y, initial_data+1e-6, origin='lower', colors='r', alpha=0.5, levels=3, linestyles='-')
+            CS = ax.contour(x, y, fitted_data+1e-6, origin='lower', colors='k', levels=3, linestyles='-') # tiny addition is to remove annoying contour lines
+            ax.scatter(fitted_params[1, i], fitted_params[2, i], color='k')
             ax.set_title('Fitted Gaussian Model')
             ax.clabel(CS, inline=True, fontsize=10)
 
         plt.show()
+        
+        return ax
 
     # Plot the original data and the fitted Gaussian model
     # plot_data_and_fit(zz, initial_guess)
-
-    plot_data_and_fit(zz, fitted_params)
+    
+    if plot:
+        ax = plot_data_and_fit(zz, fitted_params)
 
     print("Fitted Parameters:")
     print("A:", fitted_params[0])
@@ -223,7 +231,7 @@ def fit_arb_gaussians(x, y, zz, idxx, idxy, heights, sigma, plot=False):
     print("skew:", fitted_params[4])
     print("theta:", fitted_params[5])
 
-    return fitted_params
+    return fitted_params, ax
 
 def classify_point(x_points, y_points, x_peaks, y_peaks, heights=None, plot=False):
     '''
