@@ -140,6 +140,21 @@ class T2RamseyBeating(Analysis):
         rot_result.update(i_new=iq_new.params["i_data"].value,
                           q_new=iq_new.params["q_data"].value)
         return QubitBasicResult_rot(fitResult.lmfit_result, fitResult.params, rot_result)
+    
+class T2RamseyBeating_woPlotting(Analysis):
+    @staticmethod
+    def analyze(x_data, iq_data, rot_result={}, dry=False, params={}, **fit_kwargs):
+        # rotate data
+        rot_angle = rot_result.get("rot_angle", "find")
+        rotIQ = RotateData(x_data, iq_data)
+        iq_new = rotIQ.run(rot_angle)
+        #fit to decay
+        ramseyFit  = qf.T2RamseyBeating_woPlotting(x_data, iq_new.params["i_data"].value)
+        fitResult = ramseyFit.run(dry, params, **fit_kwargs)
+
+        rot_result.update(i_new=iq_new.params["i_data"].value,
+                          q_new=iq_new.params["q_data"].value)
+        return QubitBasicResult_rot(fitResult.lmfit_result, fitResult.params, rot_result)
 
 
 if __name__=="__main__":

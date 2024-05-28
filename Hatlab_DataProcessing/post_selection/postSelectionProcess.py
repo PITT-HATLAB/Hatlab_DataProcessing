@@ -1,7 +1,7 @@
 """
 Created on Mon May 30 12:04:54 2022
 
-@author: chao
+@author: chao, boris
 """
 
 
@@ -18,6 +18,7 @@ from Hatlab_DataProcessing.fitter.arb_gaussian import classify_point, peakfinder
 
 from Hatlab_DataProcessing.fitter.gaussian_2d import Gaussian2D_2Blob, Gaussian2D_3Blob
 from Hatlab_DataProcessing.slider_plot.sliderPlot import sliderHist2d
+from Hatlab_DataProcessing.analyzer.IQ_blobs import blob_info
 
 def auto_hist_range(data_I, data_Q):
     data_max = np.max(np.abs(np.array([data_I, data_Q])))
@@ -562,7 +563,7 @@ class PostSelectionData_fast(PostSelectionData_Base):
         self.radius = radius
         self.stateDict = {}
         self.select_radius = select_radius
-        self.reorder=reorder
+        self.reorder = reorder
 
         # Only use a dedicated histogram to generate mask if specified, otherwise just use provided data to generate histogram.
         if mask_I is None or mask_Q is None:
@@ -587,24 +588,22 @@ class PostSelectionData_fast(PostSelectionData_Base):
         idxx, idxy, heights = peakfinder_2d(self.mask_hist, self.radius, self.num_states)
         # idxx, idxy, heights = self.peakfinder_2d(self.mask_hist, self.radius, self.num_states, add_noise=True)
 
-
         x = self.mask_x[idxx]
         y = self.mask_y[idxy]
 
         # a quick reordering routine, which picks g as the tallest, and then reorders based on angle from mid point
         # not very versatile, in general you may need to hand pick states or coherently prepare, no functionality for that yet
-        
+
         if self.reorder == True:
-        
             x_centered = x - np.mean(x)
             y_centered = y - np.mean(y)
-    
+
             theta = np.angle(x_centered + 1j * y_centered)
             theta = theta - theta[0]
             theta[np.where(theta < 0)] = 2 * np.pi + theta[np.where(theta < 0)]
-    
+
             order = np.argsort(theta)
-    
+
             x = x[order]
             y = y[order]
             heights = heights[order]
@@ -620,7 +619,7 @@ class PostSelectionData_fast(PostSelectionData_Base):
         for i in range(0, self.num_states):
             for j in range(0, self.num_states):
                 distances[i, j] = np.sqrt((self.stateDict[i]['x'] - self.stateDict[j]['x']) ** 2 + (
-                            self.stateDict[i]['y'] - self.stateDict[j]['y']) ** 2)
+                        self.stateDict[i]['y'] - self.stateDict[j]['y']) ** 2)
 
         self.distances = distances
 
@@ -682,10 +681,11 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
         max_neighbors = zz * 0 + np.max(zz)
         max_neighbors[radius:-radius, radius:-radius] = np.max(neighbors, axis=0)
-        
-        noise_amplitude = add_noise*np.max(zz)*1e-9
 
-        idx = np.where(max_neighbors < zz + np.random.random(np.shape(zz))*noise_amplitude )  # identifies the peaks (i.e., finds their indices)
+        noise_amplitude = add_noise * np.max(zz) * 1e-9
+
+        idx = np.where(max_neighbors < zz + np.random.random(
+            np.shape(zz)) * noise_amplitude)  # identifies the peaks (i.e., finds their indices)
         # the noise is there as a tiebreaker if two adjacent point have the same number of counts
         # we could take the peak to be the average, but really this is not a fitting function, only a rough identifier of location
 
@@ -713,6 +713,191 @@ class PostSelectionData_fast(PostSelectionData_Base):
                                    plot: Union[bool, int] = False, plot_ax=None):
         mask = self.mask_state_by_circle(sel_idx, self.stateDict[stateLabel]['x'], self.stateDict[stateLabel]['y'],
                                          self.stateDict[stateLabel]['r'], plot, stateLabel, plot_ax=plot_ax)
+        return mask
+
+    def cal_state_pct(self, calStateLabel, plot=True, res_plot_ax=None):
+        '''
+        Calculate state population probablity.
+        '''
+
+        I_peaks = []
+        Q_peaks = []
+
+        for i in range(0, self.num_states):
+            I_peaks.append(self.stateDict[i]['x'])
+            Q_peaks.append(self.stateDict[i]['y'])
+
+        I_peaks = np.array(I_peaks)
+        Q_peaks = np.array(Q_peaks)
+
+        state_pct_list = []
+
+        all_states = []
+
+        for i in range(len(self.I_vld)):
+            I_v = self.I_vld[i]
+            Q_v = self.Q_vld[i]
+
+            n_pts = len(I_v)
+
+            states = self.classify_points(I_v, Q_v, I_peaks, Q_peaks)
+
+            num_in_state = len(np.where(states == calStateLabel)[0])
+
+            state_pct_list.append(num_in_state / n_pts)
+
+            all_states.append(states)
+
+        if plot:
+
+            bins = 101
+
+            if res_plot_ax == None:
+                fig, ax = plt.subplots(figsize=(7, 7))
+                fig.suptitle('Result after selection')
+            else:
+
+                fig = res_plot_ax.get_figure()
+                ax = res_plot_ax
+
+            hist, x_edges, y_edges = np.histogram2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=bins,
+                                                    range=self.histRange)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                ax.pcolormesh(x_edges, y_edges, 10 * np.log10(hist.T), cmap='magma')
+
+            histRange = self.histRange
+
+            bins = 301
+
+            x = np.linspace(histRange[0][0], histRange[0][1], bins)
+            y = np.linspace(histRange[1][0], histRange[1][1], bins)
+
+            xx, yy = np.meshgrid(x, y)
+
+            states_for_plotting = self.classify_points(xx.flatten(), yy.flatten(), I_peaks, Q_peaks)
+            states_for_plotting = np.reshape(states_for_plotting, np.shape(xx))
+
+            ax.contour(x, y, states_for_plotting, colors='k')
+
+            ax.text(I_peaks[calStateLabel], Q_peaks[calStateLabel], str(calStateLabel), color='k',
+                    horizontalalignment='center', verticalalignment='center')
+            ax.set_aspect(1)
+
+        return state_pct_list
+
+
+class PostSelectionData_fastbeta(PostSelectionData_Base):
+    """ This is an extension of the PostSelectionData_fast that uses my arb_guassian code for more accurate selection.
+    I hope to replace the PostSelectionData_fast eventually
+
+    author: Boris Mesits 202403
+
+    :param data_I:  I data
+    :param data_Q:  Q data
+    :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
+        in one experiment sequence. For example [1, 1, 0] represents, for each three data points, the first two are
+        used for selection and the third one is experiment point.
+    :param mask_data:  3 tuple containing x, y, and histogram counts for generating the state masks. If none is
+                        provided, a new histogram will be made from the inputs data_I and data_Q
+    :param num_states: You get to specify how many states will be detected
+    :params bins: bins of mask histogram if not exteranlly specified
+    :params radius: minimum spacing of adjacent states (measured in histogram bin widths)
+    :params select_radius: radius of the circle mask used to select the number of states
+    """
+
+    def __init__(self, data_I: np.array, data_Q: np.array, selPattern: List = [1, 0],
+                 mask_I=None, mask_Q=None, num_states=2, bins=101, radius=1, select_radius=1, reorder=False, HEMT_sigma=5000):
+        super().__init__(data_I, data_Q, selPattern)
+
+        self.num_states = num_states
+        self.radius = radius
+        self.stateDict = {}
+        self.select_radius = select_radius
+        self.reorder = reorder
+        self.HEMT_sigma = HEMT_sigma
+
+        # Only use a dedicated histogram to generate mask if specified, otherwise just use provided data to generate histogram.
+        if mask_I is None or mask_Q is None:
+
+            self.mask_I = data_I
+            self.mask_Q = data_Q
+
+        else:
+            self.mask_I = mask_I
+            self.mask_Q = mask_Q
+
+        hist, x, y = np.histogram2d(self.mask_I.flatten(), self.mask_Q.flatten(), bins=(bins, bins))
+
+        self.mask_hist = hist
+        self.mask_x = x
+        self.mask_y = y
+
+        self.identify_histogram_states()
+
+    def identify_histogram_states(self):
+
+        blob_info_results = blob_info(self.mask_I.flatten(), self.mask_Q.flatten(), self.num_states, self.HEMT_sigma, plot=False)
+        # idxx, idxy, heights = self.peakfinder_2d(self.mask_hist, self.radius, self.num_states, add_noise=True)
+
+        heights = blob_info_results[0]
+        x = blob_info_results[1]
+        y = blob_info_results[2]
+
+        # a quick reordering routine, which picks g as the tallest, and then reorders based on angle from mid point
+        # not very versatile, in general you may need to hand pick states or coherently prepare, no functionality for that yet
+
+        if self.reorder == True:
+            x_centered = x - np.mean(x)
+            y_centered = y - np.mean(y)
+
+            theta = np.angle(x_centered + 1j * y_centered)
+            theta = theta - theta[0]
+            theta[np.where(theta < 0)] = 2 * np.pi + theta[np.where(theta < 0)]
+
+            order = np.argsort(theta)
+
+            x = x[order]
+            y = y[order]
+            heights = heights[order]
+
+        for i in range(0, self.num_states):
+            self.stateDict[i] = {"x": x[i],
+                                 "y": y[i],
+                                 "height": heights[i]}
+
+        # for now, doing a cheap guess of the gaussian width (sigma) from the minimum distance between states
+        distances = np.zeros([self.num_states, self.num_states])
+
+        for i in range(0, self.num_states):
+            for j in range(0, self.num_states):
+                distances[i, j] = np.sqrt((self.stateDict[i]['x'] - self.stateDict[j]['x']) ** 2 + (
+                        self.stateDict[i]['y'] - self.stateDict[j]['y']) ** 2)
+
+        self.distances = distances
+
+        min_distance = np.sort(distances.flatten())[self.num_states]
+
+        for i in range(0, self.num_states):
+            self.stateDict[i]['r'] = min_distance / 2 * self.select_radius
+            # %TODO make this better
+
+    def classify_points(self, x_points, y_points, x_peaks, y_peaks):
+
+        distances = np.zeros([len(x_points), len(x_peaks)])
+
+        for i in range(0, len(x_peaks)):
+            distances[:, i] = np.sqrt((x_points - x_peaks[i]) ** 2 + (y_points - y_peaks[i]) ** 2)
+
+        states = np.argsort(distances, axis=1)[:, 0]
+
+        return states
+
+
+    def mask_state_index_by_circle(self, stateLabel, sel_idx: int = 0, circle_size: float = 1,
+                                   plot: Union[bool, int] = False, plot_ax=None):
+        mask = self.mask_state_by_circle(sel_idx, self.stateDict[stateLabel]['x'], self.stateDict[stateLabel]['y'],
+                                         self.stateDict[stateLabel]['r']*circle_size, plot, stateLabel, plot_ax=plot_ax)
         return mask
 
     def cal_state_pct(self, calStateLabel, plot=True, res_plot_ax=None):

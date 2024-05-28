@@ -4,7 +4,7 @@ import numpy as np
 import lmfit
 from matplotlib import pyplot as plt
 from Hatlab_DataProcessing.fitter.fitter_base import Fit, FitResult
-from Hatlab_DataProcessing.fitter.generic_functions import Cosine, ExponentialDecay, ExponentialDecayWithCosine, ExponentialDecayWithCosineBeating, Lorentzian
+from Hatlab_DataProcessing.fitter.generic_functions import Cosine, ExponentialDecay, ExponentialDecayWithCosine, ExponentialDecayWithCosineBeating, ExponentialDecayWithCosineBeating_woPlotting, Lorentzian
 from Hatlab_DataProcessing.base import Analysis, AnalysisResult
 from Hatlab_DataProcessing.helpers.unit_converter import t2f
 
@@ -152,6 +152,34 @@ class T2RamseyBeating(Fit):
 
         return QubitBasicResult(fitResult, dict(tau=fit_tau, f1=fit_f1, f2=fit_f2, result_str=result_str,
                                                 A=fit_A, B=fit_B, phi1=fit_phi1, phi2=fit_phi2))
+    
+class T2RamseyBeating_woPlotting(Fit):
+    @staticmethod
+    def model(coordinates, A, f1, phi1, B, f2, phi2, tau, of):
+        """ A * cos(2 pi f x + phi) * exp (-x/tau) + of"""
+        return ExponentialDecayWithCosineBeating_woPlotting.model(coordinates, A, f1, phi1, B, f2, phi2, tau, of)
+
+    @staticmethod
+    def guess(coordinates, data):
+        return ExponentialDecayWithCosineBeating_woPlotting.guess(coordinates, data)
+
+    def analyze(self, coordinates, data, dry=False, params={}, time_unit="us", **fit_kwargs):
+        fitResult = super().analyze(coordinates, data, dry=False, params=params, **fit_kwargs)
+
+        fit_tau = fitResult.params["tau"].value
+        fit_f1 = fitResult.params["f1"].value
+        fit_f2 = fitResult.params["f2"].value
+        fit_A = fitResult.params["A"].value
+        fit_B = fitResult.params["B"].value
+        fit_phi1 = fitResult.params["phi1"].value
+        fit_phi2 = fitResult.params["phi2"].value
+        result_str = f'tau is {str(fit_tau)[:5]} {time_unit}, f1 is {f"{fit_f1:.6e}"} {t2f(time_unit)}, ' \
+                     f'f2 is {f"{fit_f2:.6e}"} {t2f(time_unit)}'
+        print(result_str)
+
+        return QubitBasicResult(fitResult, dict(tau=fit_tau, f1=fit_f1, f2=fit_f2, result_str=result_str,
+                                                A=fit_A, B=fit_B, phi1=fit_phi1, phi2=fit_phi2))
+
 
 
 if __name__ == "__main__":
