@@ -905,6 +905,8 @@ def simpleSelection_1Qgef(Idata, Qdata, gefLocation=None, plot=True,
     final_shape = list((*original_shape[1:-1],
                           int(original_shape[-1] * np.sum(selData.selPattern) / len(selData.selPattern))))
     g_pct = g_pct.reshape(*final_shape)
+    e_pct = e_pct.reshape(*final_shape)
+    f_pct = f_pct.reshape(*final_shape)
     I_vld = np.array(I_vld, dtype=object).reshape(*final_shape, -1)
     Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
 
