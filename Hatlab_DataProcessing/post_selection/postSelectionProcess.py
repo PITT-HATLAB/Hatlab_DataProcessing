@@ -627,6 +627,8 @@ class PostSelectionData_fast(PostSelectionData_Base):
         min_distance = np.sort(distances.flatten())[self.num_states]
 
         for i in range(0, self.num_states):
+            # self.stateDict[i]['r'] = min_distance / 2 * self.select_radius
+            min_distance = np.sort(distances[i])[1]
             self.stateDict[i]['r'] = min_distance / 2 * self.select_radius
             # %TODO make this better
 
@@ -715,7 +717,7 @@ class PostSelectionData_fast(PostSelectionData_Base):
                                          self.stateDict[stateLabel]['r'], plot, stateLabel, plot_ax=plot_ax)
         return mask
 
-    def cal_state_pct(self, calStateLabel, plot=True, res_plot_ax=None):
+    def cal_state_pct(self, calStateLabel, plot=True, hist_log=True, res_plot_ax=None):
         '''
         Calculate state population probablity.
         '''
@@ -744,7 +746,10 @@ class PostSelectionData_fast(PostSelectionData_Base):
 
             num_in_state = len(np.where(states == calStateLabel)[0])
 
-            state_pct_list.append(num_in_state / n_pts)
+            if n_pts != 0:
+                state_pct_list.append(num_in_state / n_pts)
+            else:
+                state_pct_list.append(0)
 
             all_states.append(states)
 
@@ -753,7 +758,7 @@ class PostSelectionData_fast(PostSelectionData_Base):
             bins = 101
 
             if res_plot_ax == None:
-                fig, ax = plt.subplots(figsize=(7, 7))
+                fig, ax = plt.subplots()
                 fig.suptitle('Result after selection')
             else:
 
@@ -764,7 +769,14 @@ class PostSelectionData_fast(PostSelectionData_Base):
                                                     range=self.histRange)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                ax.pcolormesh(x_edges, y_edges, 10 * np.log10(hist.T), cmap='magma')
+                if hist_log:
+                    pcm = ax.pcolormesh(x_edges, y_edges, np.log10(hist.T), cmap='magma')
+                    cbar = plt.colorbar(pcm, ax=ax)
+                    cbar.ax.set_ylabel(r"counts (x$10^n$)")
+                else:
+                    pcm = ax.pcolormesh(x_edges, y_edges, hist.T, cmap='viridis')
+                    cbar = plt.colorbar(pcm, ax=ax)
+                    cbar.ax.set_ylabel("counts")
 
             histRange = self.histRange
 
@@ -905,6 +917,8 @@ def simpleSelection_1Qgef(Idata, Qdata, gefLocation=None, plot=True,
     final_shape = list((*original_shape[1:-1],
                           int(original_shape[-1] * np.sum(selData.selPattern) / len(selData.selPattern))))
     g_pct = g_pct.reshape(*final_shape)
+    e_pct = e_pct.reshape(*final_shape)
+    f_pct = f_pct.reshape(*final_shape)
     I_vld = np.array(I_vld, dtype=object).reshape(*final_shape, -1)
     Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
 
