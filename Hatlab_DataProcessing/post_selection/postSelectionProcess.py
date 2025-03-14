@@ -716,6 +716,59 @@ class PostSelectionData_fast(PostSelectionData_Base):
         mask = self.mask_state_by_circle(sel_idx, self.stateDict[stateLabel]['x'], self.stateDict[stateLabel]['y'],
                                          self.stateDict[stateLabel]['r'], plot, stateLabel, plot_ax=plot_ax)
         return mask
+    
+    def plot_histogram(self, bins=101, ax=None, label=True, separatrix=True, hist_log=False, **kwargs):
+        if ax is None:
+            fig, ax = plt.subplots(**kwargs)
+        else:
+            fig = ax.get_figure()
+
+        hist, x_edges, y_edges = np.histogram2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=bins,
+                                                range=self.histRange)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if hist_log:
+                pcm = ax.pcolormesh(x_edges, y_edges, np.log10(hist.T), cmap='magma')
+                cbar = plt.colorbar(pcm, ax=ax)
+                cbar.ax.set_ylabel(r"counts (x$10^n$)")
+            else:
+                pcm = ax.pcolormesh(x_edges, y_edges, hist.T, cmap='viridis')
+                cbar = plt.colorbar(pcm, ax=ax)
+                cbar.ax.set_ylabel("counts")
+        ax.set_aspect(1)
+
+        histRange = self.histRange
+        
+        if separatrix or label:
+            I_peaks = []
+            Q_peaks = []
+            for i in range(0, self.num_states):
+                I_peaks.append(self.stateDict[i]['x'])
+                Q_peaks.append(self.stateDict[i]['y'])
+            I_peaks = np.array(I_peaks)
+            Q_peaks = np.array(Q_peaks)
+        
+        if separatrix:
+            bins = 401
+
+            x = np.linspace(histRange[0][0], histRange[0][1], bins)
+            y = np.linspace(histRange[1][0], histRange[1][1], bins)
+
+            xx, yy = np.meshgrid(x, y)
+
+            states_for_plotting = self.classify_points(xx.flatten(), yy.flatten(), I_peaks, Q_peaks)
+            states_for_plotting = np.reshape(states_for_plotting, np.shape(xx))
+
+            ax.contour(x, y, states_for_plotting, colors='k')
+        
+        if label:
+            if type(label) is int:
+                ax.text(I_peaks[label], Q_peaks[label], str(label), color='k',
+                        horizontalalignment='center', verticalalignment='center')
+            else:
+                for i in range(len(I_peaks)):
+                    ax.text(I_peaks[i], Q_peaks[i], str(i), color='k',
+                            horizontalalignment='center', verticalalignment='center')
 
     def cal_state_pct(self, calStateLabel, plot=True, hist_log=True, res_plot_ax=None):
         '''
