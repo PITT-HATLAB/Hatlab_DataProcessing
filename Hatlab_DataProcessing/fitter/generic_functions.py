@@ -21,6 +21,21 @@ class Linear(Fit):
         k = (data[-1] - data[0]) / (coordinates[-1] - coordinates[0])
         b = data[-1] - k * data[0]
         return dict(k=k, b=b)
+    
+
+class Quadratic(Fit):
+    @staticmethod
+    def model(coordinates, a, b, c) -> np.ndarray:
+        """$ a * x^2 + b * x + c $"""
+        return a * coordinates ** 2 + b * coordinates + c
+
+    @staticmethod
+    def guess(coordinates, data):
+        n = len(coordinates)
+        a = (np.gradient(np.gradient(data, coordinates), coordinates) / 2)[n//2]
+        b = (np.gradient(data, coordinates) - 2*a)[n//2]
+        c = (data - a * coordinates**2 - b * coordinates)[n//2]
+        return dict(a=a, b=b, c=c)
 
 
 class Lorentzian(Fit):
