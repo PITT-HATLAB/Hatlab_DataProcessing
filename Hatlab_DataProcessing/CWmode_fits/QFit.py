@@ -190,7 +190,7 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
 def fit_mode_from_ddh5(filepath, plot=False, printout=False):
 
     (freq, real, imag, mag, phase) = getData_from_datadict(filepath, plot_data=0)
-    popt, pcov = fit(freq, real, imag, mag, phase, plot=False, printout=False)
+    popt, pcov = fit(freq, real, imag, mag, phase, plot=plot, printout=printout)
 
     return popt, pcov
 
