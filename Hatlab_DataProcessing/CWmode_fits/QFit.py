@@ -187,10 +187,10 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
 
     return popt, pcov
 
-def fit_mode_from_ddh5(filepath):
+def fit_mode_from_ddh5(filepath, plot=False, printout=False):
 
     (freq, real, imag, mag, phase) = getData_from_datadict(filepath, plot_data=0)
-    popt, pcov = fit(freq, real, imag, mag, phase)
+    popt, pcov = fit(freq, real, imag, mag, phase, plot=False, printout=False)
 
     return popt, pcov
 
@@ -240,7 +240,6 @@ def dx2(x):
     dx2 += 2 * xc[1:-1]
     dx2 -= xc[2:]
     return dx2
-
 
 def rough_guess(freq, S21, n=2):
     S21d = decimate_by_two(S21, n=n)
