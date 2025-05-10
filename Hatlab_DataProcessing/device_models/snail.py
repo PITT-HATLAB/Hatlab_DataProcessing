@@ -1,74 +1,62 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from sympy import *
-from scipy.optimize import fsolve
-from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 import scipy
 
-init_printing(use_unicode = True)
+def snail_freq(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
+    # a, Ej, delta_s, delta_ext, delta_min = symbols('alpha,E_j,delta_s,delta_ext, delta_min')
 
-a, Ej, delta_s, delta_ext, delta_min = symbols('alpha,E_j,delta_s,delta_ext, delta_min')
+    def f(delta, phi_r, alpha, E_J):
+        return -alpha * E_J * np.cos(delta) - N * E_J * np.cos((2 * np.pi * phi_r - delta) / N)
 
+    hbar = 1.0545718e-34
+    e = 1.60218e-19
+    phi0 = np.pi * hbar / e
+    Ic = phi0 / Lj
+    phi_r = np.linspace(-0.5, 0.5, 7)
+    E_J = Ic * phi0 / (2 * np.pi)
 
-def f(delta, phi_r, alpha, E_J, N):
-    return -alpha * E_J * np.cos(delta) - N * E_J * np.cos((2 * np.pi * phi_r - delta) / N)
+    phi_r = (Ib - I0) / dIdphi_r
 
+    d_phi_r = phi_r[1] - phi_r[0]
 
+    delta_s = phi_r * 0
 
+    for i in range(0, len(phi_r)):
+        res = scipy.optimize.minimize_scalar(f, args=(phi_r[i], alpha, E_J))
+        delta_s[i] = res.x
 
-delta = np.linspace(-10, 10, 201)
+    dphi_r = phi_r[1] - phi_r[0]
 
-for i in range(0, len(phi_r)):
-    plt.plot(delta, f(delta, phi_r[i], alpha, E_J, N), label=('Phi_r = %.1f' % phi_r[i]))
+    ddelta_s = np.diff(delta_s) / d_phi_r
 
-plt.xlabel('$\\delta_s$')
-plt.ylabel('$U$')
-plt.title('Energy of SNAIL')
-plt.legend()
-plt.grid()
+    slope = ddelta_s / dphi_r
 
-Ljtotal = 1 / (1 / (Ljbig * N) + 1 / (Ljbig / alpha))
-print(Ljtotal)
-print(Ljbig / alpha)
+    c2 = alpha * np.cos(delta_s) / 2 + np.cos(2 * np.pi * phi_r / N - delta_s / N) / (2 * N)
 
+    f0 = (1 / np.sqrt(L * C)) / (np.sqrt(1 + Lj / (L * c2))) / (2 * np.pi)
 
-class SNAIL_mode():
-    def __init__(self, N, Ljs,  L, C, M=1):
-        '''
-        N: number of large area junctions, typically 2 or 3
-        Ljs: list of length two, large area junction inductance and small area junction inductance (order doesn't matter, it will be handled)
-        M: number of arrayed SNAILs, defaults to 1
-        L: linear inductance (H) of mode
-        C: capacitance (F) of mode
-        '''
+    return np.array(f0, dtype=np.float64)
 
-        hbar = 1.0545718e-34
-        e = 1.60218e-19
-        phi0 = np.pi * hbar / e
-        Ljbig = 2.0e-9  # inductance of 1 big junction
-        alpha = 0.05
-        phi_r = np.linspace(-1, 1, 7)
-        E_J = Ic * phi0 / (2 * np.pi)
-        N = 3
+def fit_fluxsweep_to_snail_model(L, C, currents, f0s, Lj_guess, alpha_guess, dIdphi_r_guess, I0_guess, N=3, M=1, plot=False):
+    '''
+    Lj guess is total Lj of the SNAIL
+    alpha is asymmetry parameter
+    dIdpi_r is flux coupling constant
+    I0 is static flux offset
+    '''
 
-        phi_r = np.linspace(-1, 1, 20001)
+    dIdphi_r = 4e-3
+    I0 = 3.33e-3
+    alpha_guess = 0.12
+    Lj = 1.5e-9
 
-        d_phi_r = phi_r[1] - phi_r[0]
+    from scipy.optimize import curve_fit
 
-        delta_s = phi_r * 0
+    fit_func = lambda Ib, Lj, alpha, dIdphi_r, I0: snail_freq(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=N, M=M)
 
-        for i in range(0, len(phi_r)):
-            res = scipy.optimize.minimize_scalar(f, args=(phi_r[i], alpha, E_J, N))
-            delta_s[i] = res.x
+    p0 = [Lj, alpha_guess, dIdphi_r, I0]
 
-        dphi_r = phi_r[1] - phi_r[0]
+    popt, pcov = curve_fit(fit_func, currents, f0s, p0=p0)
 
-        ddelta_s = np.diff(delta_s) / d_phi_r
+    return popt, pcov
 
-        slope = ddelta_s / dphi_r
-
-        plt.plot(phi_r, delta_s)
-        plt.xlabel('$\phi/\phi_0$')
-        plt.ylabel('$\delta_s$')
-        plt.title('$\delta_s$ at energy minimization condition')
-        plt.grid()
