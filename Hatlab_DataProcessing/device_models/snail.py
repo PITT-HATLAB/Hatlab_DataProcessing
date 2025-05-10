@@ -45,18 +45,23 @@ def fit_fluxsweep_to_snail_model(L, C, currents, f0s, Lj_guess, alpha_guess, dId
     I0 is static flux offset
     '''
 
-    dIdphi_r = 4e-3
-    I0 = 3.33e-3
-    alpha_guess = 0.12
-    Lj = 1.5e-9
 
     from scipy.optimize import curve_fit
 
     fit_func = lambda Ib, Lj, alpha, dIdphi_r, I0: snail_freq(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=N, M=M)
 
-    p0 = [Lj, alpha_guess, dIdphi_r, I0]
+    p0 = [Lj_guess, alpha_guess, dIdphi_r_guess, I0_guess]
 
     popt, pcov = curve_fit(fit_func, currents, f0s, p0=p0)
+
+    if plot:
+        fit_f0 = fit_func(currents, popt[0], popt[1], popt[2], popt[3])
+        guess_f0 = fit_func(currents, p0[0], p0[1], p0[2], p0[3])
+
+        plt.plot(currents, fit_f0)
+        # plt.plot(currents, guess_f0)
+        plt.scatter(currents, f0s, s=1, c='k')
+        plt.show()
 
     return popt, pcov
 
