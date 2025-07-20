@@ -29,8 +29,8 @@ def reflectionFunc(freq, Qext, Qint, f0, A, B, C, D):
     A is the phase offset. B is the rate of linear change of phase offset (proportional to electrical delay)
     C is the magnitude. D is the rate of linear change in magnitude, to account for small changes.
     '''
-    omega0 = f0
-    delta = freq - omega0
+    omega0 = f0*2*np.pi
+    delta = (freq - f0)*2*np.pi
     S_11_up = 1.0 / (1j * delta * (2 + delta / omega0) / (1 + delta / omega0) + omega0 / Qint) - Qext / omega0
     S_11_down = 1.0 / (1j * delta * (2 + delta / omega0) / (1 + delta / omega0) + omega0 / Qint) + Qext / omega0
     S11 = (S_11_up / S_11_down) * np.exp(1j * (A + B*(freq-freq[0]) ) ) * (C + D*(freq-freq[0]))
@@ -128,7 +128,7 @@ def getData(filename, method='hfss', freq_unit='GHz', plot_data=1):
     #     lin = 10**(f['S21'][()][1] / 20.0)
 
 
-def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, QintGuess=None,
+def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, QextGuess=None, QintGuess=None,
             AGuess=None, BGuess=None, CGuess=None, DGuess=None, plot=False, printout=False, n=3):
 
     if QextGuess == None:
@@ -146,11 +146,16 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
         DGuess = 0
 
     S21 = real + 1j * imag
-    f0Guess = rough_guess(freq, S21, n=n)
+
+    if f0Guess == None:
+        f0Guess = rough_guess(freq, S21, n=n)
+
+
 
     if bounds == None:
-        bounds = ([QextGuess / 10.0, QintGuess / 10.0, f0Guess / 1.1, -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 1e-6],
-                  [QextGuess * 10.0, QintGuess * 10.0, f0Guess * 1.1, 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 1e-6])
+        bounds = ([QextGuess / 10.0, QintGuess / 10.0, np.min(freq), -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 1e-6],
+                  [QextGuess * 10.0, QintGuess * 10.0, np.max(freq), 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 1e-6])
+
 
     target_func = reflectionFunc
     data_to_fit = (real + 1j * imag).view(np.float64)
@@ -160,7 +165,7 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
     popt, pcov = curve_fit(target_func, freq, data_to_fit,
                            p0=(QextGuess, QintGuess, f0Guess, AGuess, BGuess, CGuess, DGuess),
                            bounds=bounds,
-                           maxfev=1e4, ftol=2.3e-16, xtol=2.3e-16)
+                           maxfev=1e4, ftol=2.3e-8, xtol=2.3e-8)
 
     if printout:
         print(f'f (Hz): {rounder(popt[2] / 2 / np.pi)}', )
@@ -177,8 +182,14 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
     if plot:
         popt_guess = [QextGuess, QintGuess, f0Guess, AGuess, BGuess, CGuess, DGuess]
 
-        plotRes(freq, real, imag, mag, phase, popt_guess)
-        plotRes(freq, real, imag, mag, phase, popt)
+        points_guess = plotRes(freq, real, imag, mag, phase, popt_guess)
+        points_fit = plotRes(freq, real, imag, mag, phase, popt)
+
+        norm_guess = np.mean(np.abs(points_guess))
+        cost_guess = np.mean(np.abs(points_guess-S21))/norm_guess
+
+        norm_fit = np.mean(np.abs(points_fit))
+        cost_fit = np.mean(np.abs(points_fit - S21))/norm_fit
 
         plt.figure()
         S21d = decimate_by_two(S21, n=n)
@@ -196,7 +207,7 @@ def fit_mode_from_ddh5(filepath, plot=False, printout=False):
 
 
 def plotRes(freq, real, imag, mag, phase, popt):
-    xdata = freq / (2 * np.pi)
+    xdata = freq
     realRes = reflectionFunc(freq, *popt)[::2]
     imagRes = reflectionFunc(freq, *popt)[1::2]
     # realRes = reflectionFunc(freq, *popt)
@@ -211,6 +222,7 @@ def plotRes(freq, real, imag, mag, phase, popt):
     plt.plot(xdata, imagRes)
     plt.show()
 
+    return realRes + imagRes*1j
 
 def decimate_by_two(x, n=1):
     xc = x.copy()
@@ -249,4 +261,9 @@ def rough_guess(freq, S21, n=2):
 
     f0_guess = freq[np.argmax(metric)]
     return f0_guess
+
+
+
+
+
 

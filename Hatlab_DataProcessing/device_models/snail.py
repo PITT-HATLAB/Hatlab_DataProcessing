@@ -3,27 +3,34 @@ import matplotlib.pyplot as plt
 import scipy
 
 def snail_freq(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
-    # a, Ej, delta_s, delta_ext, delta_min = symbols('alpha,E_j,delta_s,delta_ext, delta_min')
-
     '''
     Lj is total Lj
+    '''
+
+    omega, g3, g4, K = get_snail_hamiltonian_params(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=N, M=M)
+
+    f0 = omega / (2 * np.pi)
+
+    return np.array(f0, dtype=np.float64)
+
+def get_snail_hamiltonian_params(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
+
+    '''
+    Completely derived from Frattini et al. 2018
     '''
 
     def f(delta, phi_r, alpha, E_J):
         return -alpha * E_J * np.cos(delta) - N * E_J * np.cos((2 * np.pi * phi_r - delta) / N)
 
-    Lj3 = (N*alpha+1)/(N)*Lj # Lj of a single large-area junction
+    Lj_single = (N*alpha+1)/ (N) * Lj # Lj of a single large-area junction. By Frattini convention, jj params are relative to this value
 
     hbar = 1.0545718e-34
     e = 1.60218e-19
     phi0 = np.pi * hbar / e
-    Ic = phi0 / Lj3
-    phi_r = np.linspace(-0.5, 0.5, 7)
+    Ic = phi0 / Lj_single
     E_J = Ic * phi0 / (2 * np.pi)
 
     phi_r = (Ib - I0) / dIdphi_r
-
-    d_phi_r = phi_r[1] - phi_r[0]
 
     delta_s = phi_r * 0
 
@@ -31,17 +38,24 @@ def snail_freq(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
         res = scipy.optimize.minimize_scalar(f, args=(phi_r[i], alpha, E_J))
         delta_s[i] = res.x
 
-    dphi_r = phi_r[1] - phi_r[0]
-
-    ddelta_s = np.diff(delta_s) / d_phi_r
-
-    slope = ddelta_s / dphi_r
-
     c2 = alpha * np.cos(delta_s) / 2 + np.cos(2 * np.pi * phi_r / N - delta_s / N) / (2 * N)
+    c3 = -alpha * np.sin(delta_s) / 6 + np.sin(2 * np.pi * phi_r / N - delta_s / N) / 54
+    c4 = -alpha * np.cos(delta_s) / 24 - np.cos(2 * np.pi * phi_r / N - delta_s / N) / 648
 
-    f0 = (1 / np.sqrt(L * C)) / (np.sqrt(1 + Lj3 / (L * c2))) / (2 * np.pi)
+    Ls = Lj_single / c2
+    omega = 1 / np.sqrt(C * (L + M * Ls))
 
-    return np.array(f0, dtype=np.float64)
+    p = M * Ls / (L + M * Ls)
+
+    E_C = 2 * e ** 2 / C
+
+    g3 = 1 / 6 * p ** 2 / M * c3 / c2 * np.sqrt(E_C * hbar * omega) / hbar
+    g4 = 1 / 12 * p ** 3 / M ** 2 * (c4 - 3 * c3 ** 2 / c2 * (1 - p)) * E_C / c2 / hbar
+
+    K = 12 * (g4 - 5 * g3 ** 2 / omega)
+
+    return omega, g3, g4, K
+
 
 def fit_fluxsweep_to_snail_model(L, C, currents, f0s, Lj_guess, alpha_guess, dIdphi_r_guess, I0_guess, N=3, M=1,plot=False):
     '''
