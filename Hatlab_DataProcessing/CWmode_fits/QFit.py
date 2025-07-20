@@ -128,8 +128,13 @@ def getData(filename, method='hfss', freq_unit='GHz', plot_data=1):
     #     lin = 10**(f['S21'][()][1] / 20.0)
 
 
-def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, QintGuess=None,
+def fit(freq, real, imag, mag, phase, real_only=0, f0Guess=None, bounds=None, QextGuess=None, QintGuess=None,
             AGuess=None, BGuess=None, CGuess=None, DGuess=None, plot=False, printout=False, n=3):
+
+    '''
+    A is the phase offset. B is the rate of linear change of phase offset (proportional to electrical delay)
+    C is the magnitude. D is the rate of linear change in magnitude, to account for small changes.
+    '''
 
     if QextGuess == None:
         QextGuess = np.mean(freq)/(10*(freq[1]-freq[0]))
@@ -145,12 +150,13 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
     if DGuess == None:
         DGuess = 0
 
-    S21 = real + 1j * imag
-    f0Guess = rough_guess(freq, S21, n=n)
+    if f0Guess == None:
+        S21 = real + 1j * imag
+        f0Guess = rough_guess(freq, S21, n=n)
 
     if bounds == None:
-        bounds = ([QextGuess / 10.0, QintGuess / 10.0, f0Guess / 1.1, -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 1e-6],
-                  [QextGuess * 10.0, QintGuess * 10.0, f0Guess * 1.1, 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 1e-6])
+        bounds = ([QextGuess / 10.0, QintGuess / 10.0, np.min(freq), -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 1e-6],
+                  [QextGuess * 10.0, QintGuess * 10.0, np.max(freq), 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 1e-6])
 
     target_func = reflectionFunc
     data_to_fit = (real + 1j * imag).view(np.float64)
@@ -160,7 +166,7 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, QextGuess=None, 
     popt, pcov = curve_fit(target_func, freq, data_to_fit,
                            p0=(QextGuess, QintGuess, f0Guess, AGuess, BGuess, CGuess, DGuess),
                            bounds=bounds,
-                           maxfev=1e4, ftol=2.3e-16, xtol=2.3e-16)
+                           maxfev=1e5, ftol=2.3e-16, xtol=2.3e-16)
 
     if printout:
         print(f'f (Hz): {rounder(popt[2] / 2 / np.pi)}', )

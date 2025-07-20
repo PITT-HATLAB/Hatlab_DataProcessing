@@ -121,6 +121,19 @@ def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=Fals
 
     return currents, Qext, Qint, f0
 
+def get_fluxsweep_fit_from_ddh5(filepath, current_name='currents', Qext_name='Qext', Qint_name='Qint', f0_name='f0'):
+    
+    datadict = all_datadicts_from_hdf5(filepath)['data']
+    
+    print(datadict)
+    
+    currents = datadict[current_name]['values']
+    Qext = datadict[Qext_name]['values']
+    Qint = datadict[Qint_name]['values']
+    f0 = datadict[f0_name]['values']
+    
+    return currents, Qext, Qint, f0
+
 
 
 
