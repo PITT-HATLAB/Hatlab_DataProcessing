@@ -150,12 +150,9 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
     if f0Guess == None:
         f0Guess = rough_guess(freq, S21, n=n)
 
-
-
     if bounds == None:
         bounds = ([QextGuess / 10.0, QintGuess / 10.0, np.min(freq), -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 1e-6],
                   [QextGuess * 10.0, QintGuess * 10.0, np.max(freq), 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 1e-6])
-
 
     target_func = reflectionFunc
     data_to_fit = (real + 1j * imag).view(np.float64)
