@@ -182,18 +182,22 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
         points_guess = plotRes(freq, real, imag, mag, phase, popt_guess)
         points_fit = plotRes(freq, real, imag, mag, phase, popt)
 
-        norm_guess = np.mean(np.abs(points_guess))
-        cost_guess = np.mean(np.abs(points_guess-S21))/norm_guess
-
-        norm_fit = np.mean(np.abs(points_fit))
-        cost_fit = np.mean(np.abs(points_fit - S21))/norm_fit
-
         plt.figure()
         S21d = decimate_by_two(S21, n=n)
         metric = dx2(np.imag(S21d)) ** 2 + dx2(np.real(S21d)) ** 2
         plt.plot(metric)
 
-    return popt, pcov
+    '''
+    Currently, I need a way to estimate the fit confidence, but pcov is not a great way of doing this from 
+    experience. Calculating a kind of residual instead.
+    '''
+
+    points_fit = reflectionFunc(freq, *popt)[::2] + 1j*reflectionFunc(freq, *popt)[1::2]
+
+    norm_fit = np.mean(np.abs(points_fit))
+    cost_fit = np.mean(np.abs(points_fit - S21)**2) / norm_fit
+
+    return popt, cost_fit
 
 def fit_mode_from_ddh5(filepath, plot=False, printout=False):
 

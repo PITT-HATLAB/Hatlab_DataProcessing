@@ -89,6 +89,7 @@ def fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=3):
     f0 = currents*0
     Qint = currents * 0
     Qext = currents * 0
+    cost = currents*0
 
 
     for i in tqdm(range(0, len(currents))):
@@ -98,13 +99,14 @@ def fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=3):
         mag_i = mag[i, :]
         phase_i = phase[i, :]
 
-        popt, pcov = fit(freqs, real_i, imag_i, mag_i, phase_i, plot=False, n=n)
+        popt, cost_i = fit(freqs, real_i, imag_i, mag_i, phase_i, plot=False, n=n)
 
         Qext[i] = popt[0]
         Qint[i] = popt[1]
         f0[i] = popt[2]
+        cost[i] = cost_i
 
-    return Qext, Qint, f0
+    return Qext, Qint, f0, cost
 
 def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=3):
 
@@ -133,7 +135,7 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
         mag_interp = np.interp(f_interp, freqs, mag[i, :])
         phase_interp = np.interp(f_interp, freqs, phase[i, :])
 
-        popt, pcov = fit(f_interp, real_interp, imag_interp, mag_interp, phase_interp, f0Guess=f0Guess, AGuess=AGuess, BGuess=BGuess,
+        popt, cost = fit(f_interp, real_interp, imag_interp, mag_interp, phase_interp, f0Guess=f0Guess, AGuess=AGuess, BGuess=BGuess,
                              CGuess=CGuess, DGuess=DGuess, QintGuess=QintGuess, QextGuess=QextGuess, n=n, plot=False)
 
         Qext[i] = popt[0]
@@ -148,7 +150,7 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
         CGuess = popt[5]
         DGuess = popt[6]
 
-    return Qext, Qint, f0
+    return Qext, Qint, f0, cost
 
 
 def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=False, trim_currents=(0, 0), trim_freqs=(0, 0), plot=False, n=3,use_radians=True, f0Guess=None, QGuess=None):
@@ -162,10 +164,10 @@ def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=Fals
 
     if f0Guess != None and QGuess != None:
         print('Running adaptive fitter...')
-        Qext, Qint, f0 = fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=n)
+        Qext, Qint, f0, cost = fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=n)
     else:
         print('Running parallel fitter...')
-        Qext, Qint, f0 = fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=n)
+        Qext, Qint, f0, cost = fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=n)
     print('...done!')
 
     if plot:
@@ -196,7 +198,7 @@ def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=Fals
                 fit_Qext=Qext,
                 fit_Qint=Qint)
 
-    return currents, Qext, Qint, f0
+    return currents, Qext, Qint, f0, cost
 
 if __name__ == '__main__':
     from Hatlab_DataProcessing.CWmode_fits.fluxsweep import fit_fluxsweep_from_ddh5, get_fluxsweep_data_from_ddh5, \
@@ -206,7 +208,7 @@ if __name__ == '__main__':
     from scipy.optimize import curve_fit
 
     FSfile = r"X:\data\EmbeddedAmplifier\cooldown20250608\VNA\fluxsweep\2025-07-13\2025-07-13T002414_3bfbd726-in9_outC_mag3_-45Bm_VNA_VNA\data.ddh5"
-    currents, Qext, Qint, f0 = fit_fluxsweep_from_ddh5(FSfile, remove_background=False, plot=True, trim_freqs=(0, 0), trim_currents=(0,50),
+    currents, Qext, Qint, f0, cost = fit_fluxsweep_from_ddh5(FSfile, remove_background=False, plot=True, trim_freqs=(0, 0), trim_currents=(0,50),
                                                        n=5, use_radians=True, f0Guess=3.925e9, QGuess=500, save_filepath=r'X:\data\EmbeddedAmplifier\cooldown20250608\fits')
 
 
