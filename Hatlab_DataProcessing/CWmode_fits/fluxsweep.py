@@ -6,7 +6,8 @@ from plottr.data import datadict_storage as dds, datadict as dd
 from tqdm import tqdm
 
 def get_fluxsweep_data_from_ddh5(filepath, trim_currents=(0,0), trim_freqs=(0,0),
-                                 currents_name='bias_current', freqs_name='vna_frequency', phase_name='vna_phase', mag_name='vna_power',use_radians=True):
+                                 currents_name='bias_current', freqs_name='vna_frequency', phase_name='vna_phase',
+                                 mag_name='vna_power',use_radians=True):
     '''
     trim is how many points *from the boundary* to delete
     '''
@@ -115,7 +116,7 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
     result as the guess for the next. It also uses a dynamic window to improve the fit
     '''
 
-    f0 = currents*0
+    f0 = currents * 0
     Qint = currents * 0
     Qext = currents * 0
 
@@ -153,11 +154,12 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
     return Qext, Qint, f0, cost
 
 
-def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=False, trim_currents=(0, 0), trim_freqs=(0, 0), plot=False, n=3,use_radians=True, f0Guess=None, QGuess=None):
+def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=False, trim_currents=(0, 0),
+                            trim_freqs=(0, 0), plot=False, n=3,use_radians=True, f0Guess=None, QGuess=None,
+                            currents_name='bias_current', freqs_name='vna_frequency', phase_name='vna_phase',
+                            mag_name='vna_power',):
 
-    # todo save fit to ddh5 file
-
-    freqs, currents, real, imag, mag, phase = get_fluxsweep_data_from_ddh5(filepath, trim_currents=trim_currents, trim_freqs=trim_freqs, use_radians=use_radians)
+    freqs, currents, real, imag, mag, phase = get_fluxsweep_data_from_ddh5(filepath, trim_currents=trim_currents, trim_freqs=trim_freqs, use_radians=use_radians, currents_name=currents_name, freqs_name=freqs_name, phase_name=phase_name, mag_name=mag_name)
 
     if remove_background:
         real, imag, mag, phase = remove_fluxsweep_background(currents, real, imag, mag, phase)
@@ -199,6 +201,10 @@ def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=Fals
                 fit_Qint=Qint)
 
     return currents, Qext, Qint, f0, cost
+
+def combine_fluxsweeps(fit_filepaths):
+
+    pass
 
 if __name__ == '__main__':
     from Hatlab_DataProcessing.CWmode_fits.fluxsweep import fit_fluxsweep_from_ddh5, get_fluxsweep_data_from_ddh5, \

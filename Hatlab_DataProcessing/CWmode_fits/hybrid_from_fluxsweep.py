@@ -2,7 +2,7 @@ from Hatlab_DataProcessing.CWmode_fits.fluxsweep import fit_fluxsweep_from_ddh5
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-from util import overlapping_support_points
+from Hatlab_DataProcessing.CWmode_fits.util import overlapping_support_points
 
 def dressed_r_omega(omega_q, omega_r, g):
     '''
@@ -51,8 +51,6 @@ def g_delta_fit(currents_s, currents_r, f0_s, f0_r, plot=False, printout=False):
                            p0=(f0_r_bare_guess*2*np.pi, gGuess*2*np.pi),
                            bounds=bounds,
                            maxfev=1e4, ftol=2.3e-16, xtol=2.3e-16)
-
-    print(gGuess/1e6 + ' MHz')
 
     if plot:
         plt.figure()
