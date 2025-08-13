@@ -13,21 +13,38 @@ def snail_freq(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
 
     return np.array(f0, dtype=np.float64)
 
-def get_snail_hamiltonian_params(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
 
+def Lj_to_Ljtotal(Lj, N, alpha):
+    'Uses Frattini convention for Lj'
+    Lj_total = Lj / ((N * alpha + 1) / (N))
+    return Lj_total
+
+def Ljtotal_to_Lj(Lj_total, N, alpha):
+    'Uses Frattini convention for Lj'
+    Lj = (N * alpha + 1) / (N) * Lj_total
+    return Lj
+
+def get_snail_hamiltonian_params(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1, Lj_convention='Frattini'):
     '''
     Completely derived from Frattini et al. 2018
+    :param Lj: inductance of a single large-area junction. By Frattini convention, jj params are relative to this value.
+    The Hatlab convention treats Lj as the inductance of the single small-area junction (keyword arg to change)
     '''
 
     def f(delta, phi_r, alpha, E_J):
         return -alpha * E_J * np.cos(delta) - N * E_J * np.cos((2 * np.pi * phi_r - delta) / N)
 
-    Lj_single = (N*alpha+1)/ (N) * Lj # Lj of a single large-area junction. By Frattini convention, jj params are relative to this value
+    if Lj_convention=='Frattini':
+        pass
+    if Lj_convention=='Hatlab':
+        Lj = Lj*alpha # converts from Hatlab to Frattini convention
+    if Lj_convention=='Total':
+        Lj = Ljtotal_to_Lj(Lj, N, alpha) # converts from total (e.g., number in HFSS) to Frattini convention
 
     hbar = 1.0545718e-34
     e = 1.60218e-19
     phi0 = np.pi * hbar / e
-    Ic = phi0 / Lj_single
+    Ic = phi0 / Lj
     E_J = Ic * phi0 / (2 * np.pi)
 
     phi_r = (Ib - I0) / dIdphi_r
@@ -38,11 +55,11 @@ def get_snail_hamiltonian_params(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1):
         res = scipy.optimize.minimize_scalar(f, args=(phi_r[i], alpha, E_J))
         delta_s[i] = res.x
 
-    c2 = alpha * np.cos(delta_s) / 2 + np.cos(2 * np.pi * phi_r / N - delta_s / N) / (2 * N)
-    c3 = -alpha * np.sin(delta_s) / 6 + np.sin(2 * np.pi * phi_r / N - delta_s / N) / 54
-    c4 = -alpha * np.cos(delta_s) / 24 - np.cos(2 * np.pi * phi_r / N - delta_s / N) / 648
+    c2 = alpha * np.cos(delta_s) + np.cos(2 * np.pi * phi_r / N - delta_s / N) / N
+    c3 = -alpha * np.sin(delta_s) + np.sin(2 * np.pi * phi_r / N - delta_s / N) / N ** 2
+    c4 = -alpha * np.cos(delta_s) - np.cos(2 * np.pi * phi_r / N - delta_s / N) / N ** 3
 
-    Ls = Lj_single / c2
+    Ls = Lj / c2
     omega = 1 / np.sqrt(C * (L + M * Ls))
 
     p = M * Ls / (L + M * Ls)
