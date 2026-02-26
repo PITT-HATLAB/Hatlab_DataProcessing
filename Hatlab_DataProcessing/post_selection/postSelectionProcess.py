@@ -12,6 +12,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
+import yaml
 from tqdm import tqdm
 from Hatlab_DataProcessing.fitter.arb_gaussian import classify_point, peakfinder_2d
 
@@ -552,10 +553,12 @@ class PostSelectionData_fast(PostSelectionData_Base):
     :params bins: bins of mask histogram if not exteranlly specified
     :params radius: minimum spacing of adjacent states (measured in histogram bin widths)
     :params select_radius: radius of the circle mask used to select the number of states
+    :params stateDict: information of state iq position. It can be a dict with the same format as a stateDict
+                       or filepath that lead to a YAML file that store the stateDict information
     """
 
-    def __init__(self, data_I: np.array, data_Q: np.array, selPattern: List = [1, 0],
-                 mask_I=None, mask_Q=None, num_states=2, bins=101, radius=1, select_radius=1, reorder=False):
+    def __init__(self, data_I: np.array, data_Q: np.array, selPattern: List = [1, 0], mask_I=None, mask_Q=None,
+                 num_states=2, bins=101, radius=1, select_radius=1, reorder=False, stateDict: str=None):
         super().__init__(data_I, data_Q, selPattern)
 
         self.num_states = num_states
@@ -580,7 +583,12 @@ class PostSelectionData_fast(PostSelectionData_Base):
         self.mask_x = x
         self.mask_y = y
 
-        self.identify_histogram_states()
+        if type(stateDict) == dict:
+            self.stateDict = stateDict
+        elif type(stateDict) == str:
+            self.load_stateDict_from_yaml(stateDict)
+        else:
+            self.identify_histogram_states()
 
     def identify_histogram_states(self):
 
@@ -850,6 +858,47 @@ class PostSelectionData_fast(PostSelectionData_Base):
             ax.set_aspect(1)
 
         return state_pct_list
+
+    def save_stateDict_to_yaml(self, filepath: str) -> None:
+        def convert_numpy(obj):
+            """
+            Recursively convert numpy types to native Python types.
+            """
+            if isinstance(obj, dict):
+                return {convert_numpy(k): convert_numpy(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy(i) for i in obj]
+            elif isinstance(obj, tuple):
+                return tuple(convert_numpy(i) for i in obj)
+            elif isinstance(obj, np.generic):  # numpy scalar (float64, int64, etc.)
+                return obj.item()
+            else:
+                return obj
+
+        clean_data = convert_numpy(self.stateDict)
+        with open(filepath, "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                clean_data,
+                f,
+                sort_keys=False,
+            default_flow_style=False
+        )
+    def load_stateDict_from_yaml(self, filepath: str):
+        """
+        Update stateDict from a yaml file
+        :param file_path: Path to the YAML file
+        :return: Dictionary with YAML content
+        """
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        if data is None:
+            pass
+
+        if not isinstance(data, dict):
+            raise ValueError("YAML file does not contain a dictionary at the top level.")
+        self.stateDict = data
+        return data
 
 def flatten_sweep_axes(data):
     """
