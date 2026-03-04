@@ -5,7 +5,7 @@ Created on Mon May 30 12:04:54 2022
 """
 
 
-from typing import List, Callable, Union, Tuple, Dict
+from typing import List, Callable, Union, Tuple, Dict, Sequence
 import warnings
 import time
 
@@ -28,7 +28,7 @@ def auto_hist_range(data_I, data_Q):
 class PostSelectionData_Base():
     def __init__(self, data_I: np.ndarray, data_Q: np.ndarray, selPattern: List = [1, 0],
                  histRange=None):
-        """ A base class fro post selection data. doesn't specify the size of Hilbert space of the qubit.
+        """ A base class for post selection data. doesn't specify the size of Hilbert space of the qubit.
         :param data_I:  I data
         :param data_Q:  Q data
         :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
@@ -122,11 +122,11 @@ class PostSelectionData_Base():
                 'all experiment pts after selection\n' + "sel%: " + str(selNum / len(self.data_I_raw)))
             ax.hist2d(np.hstack(self.I_vld), np.hstack(self.Q_vld), bins=101, range=self.histRange)
             ax.set_aspect(1)
-            print("sel%: " + str(selNum / len(self.data_I_raw)))
+            # print("sel%: " + str(selNum / len(self.data_I_raw)))
 
         selNum = np.average(list(map(len, self.I_vld)))
         self.sel_pct = selNum / len(self.data_I_raw)
-        print("sel%: " + str(self.sel_pct))
+        # print("sel%: " + str(self.sel_pct))
         return self.I_vld, self.Q_vld
 
     def auto_fit(self, nBlobs=2, fitGuess={}, bins=201, stateMask=None, plotGauFitting=True, dryRun=False):
@@ -550,22 +550,23 @@ class PostSelectionData_fast(PostSelectionData_Base):
     :param mask_data:  3 tuple containing x, y, and histogram counts for generating the state masks. If none is
                         provided, a new histogram will be made from the inputs data_I and data_Q
     :param num_states: You get to specify how many states will be detected
-    :params bins: bins of mask histogram if not exteranlly specified
+    :params bins: bins of mask histogram if not externally specified
     :params radius: minimum spacing of adjacent states (measured in histogram bin widths)
     :params select_radius: radius of the circle mask used to select the number of states
-    :params stateDict: information of state iq position. It can be a dict with the same format as a stateDict
-                       or filepath that lead to a YAML file that store the stateDict information
+    :params stateDict: information of state iq position. It can be 1) a dict with the same format as a stateDict or
+                       2) filepath that leads to a YAML file that stores the stateDict information
     """
 
     def __init__(self, data_I: np.array, data_Q: np.array, selPattern: List = [1, 0], mask_I=None, mask_Q=None,
-                 num_states=2, bins=101, radius=1, select_radius=1, reorder=False, stateDict: str=None):
-        super().__init__(data_I, data_Q, selPattern)
+                 num_states=2, bins=101, histRange=None, radius=1, select_radius=1, reorder=False, stateDict: Union[str, dict]=None):
+        super().__init__(data_I, data_Q, selPattern, histRange)
 
         self.num_states = num_states
         self.radius = radius
         self.stateDict = {}
         self.select_radius = select_radius
         self.reorder=reorder
+        self.histBins = bins
 
         # Only use a dedicated histogram to generate mask if specified, otherwise just use provided data to generate histogram.
         if mask_I is None or mask_Q is None:
@@ -936,8 +937,6 @@ def simpleSelection_1Qge(Idata, Qdata, geLocation=None, plot=True,
     original_shape, Idata = flatten_sweep_axes(Idata) # todo: this should be moved to the PostSelectionData classes
     _, Qdata = flatten_sweep_axes(Qdata)
 
-    print("post selection shape: ", Idata.shape, Qdata.shape)
-
     selData = PostSelectionData_ge(Idata, Qdata, [1, 0], geLocation, False,
                                    fitGuess, stateMask, histBins, histRange)
 
@@ -1025,6 +1024,60 @@ def simpleSelection_1Qgef(Idata, Qdata, gefLocation=None, plot=True,
     Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
 
     return [g_pct, e_pct, f_pct], I_vld, Q_vld, selData
+
+def simpleSelection_1Qfast(Idata, Qdata, mask_I=None, mask_Q=None,
+                         num_states=2, bins=101, histRange=None, radius=1, select_radius=1, reorder=False,
+                         stateDict: Union[str, dict]=None, plot=True, state_seq: Sequence[int]=None):
+    """simple post selection function that selects data points where the qubit is in g
+        state in the first MSMT of each two MSMTs when the f state needs to be considered in fitting.
+
+        :param Idata: I data, nd array, first axes should be nReps
+        :param Qdata: Q data, nd array, first axes should be nReps
+        :param selPattern: list of 1 and 0 that represents which pulse is selection and which pulse is experiment msmt
+        :param mask_I:  I data for generating mask. If None, will use Idata to generate mask.
+        :param mask_Q:  Q data for generating mask. If None, will use Qdata to generate mask.
+        :param num_states: number of states to be detected in the histogram for generating mask
+        :param bins: number of bins for histogram for generating mask if not externally specified
+        :param histRange: range of histogram
+        :param radius: minimum spacing of adjacent states (measured in histogram bin widths) for generating mask if not externally specified
+        :param select_radius: radius of the circle mask used to select the number of states for generating mask if not externally specified
+        :param stateDict: information of state iq position for generating mask. It can be 1) a dict with the same format as a stateDict or
+                       2) filepath that leads to a YAML file that stores the stateDict information. If None, will automatically identify states.
+        :param plot: plot histogram and selection result
+        :param state_seq: the index of qubit states from g to e and higher
+
+        :returns: state_pop (array of population percentage for each detected state),
+                  I_vld (list of selected I data), Q_vld (list of selected Q data),
+                  selData (PostSelectionData_fast object)
+
+    """
+    if state_seq is None:
+        state_seq = list(range(num_states))
+
+    original_shape, Idata = flatten_sweep_axes(Idata)
+    _, Qdata = flatten_sweep_axes(Qdata)
+
+    state_pop = np.zeros((num_states, Idata.shape[1]//2))
+    
+    selData = PostSelectionData_fast(Idata, Qdata, [1, 0], mask_I, mask_Q,
+                                    num_states, bins, histRange, radius, select_radius, reorder, stateDict)
+    selMask = selData.mask_state_index_by_circle(state_seq[0])
+    I_vld, Q_vld = selData.sel_data(selMask, plot=plot)
+    if plot:
+        selData.plot_histogram(bins=bins, hist_log=False)
+    
+    for i in state_seq:
+        state_pop[i] = selData.cal_state_pct(i, plot=False, hist_log=True)
+    
+    final_shape = list((*original_shape[1:-1],
+                          int(original_shape[-1] * np.sum(selData.selPattern) / len(selData.selPattern))))
+    state_pop = state_pop.reshape((num_states, *final_shape))
+    I_vld = np.array(I_vld, dtype=object).reshape(*final_shape, -1)
+    Q_vld = np.array(Q_vld, dtype=object).reshape(*final_shape, -1)
+
+    return state_pop, I_vld, Q_vld, selData
+
+
 
 
 
