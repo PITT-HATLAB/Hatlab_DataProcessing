@@ -181,10 +181,15 @@ def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=Fals
         that have a tunable range many orders of magnitude larger than the linewidth
         '''
         FS_dd = all_datadicts_from_hdf5(filepath)['data']
-        previous_fluxsweep_fit_file = FS_dd.meta_val('FS Fit File')
-        previous_FS_dd = all_datadicts_from_hdf5(previous_fluxsweep_fit_file)['data']
-        fit_f0 = previous_FS_dd['fit_freq']['values']
-        fit_current = previous_FS_dd['current']['values']
+        try:
+            previous_fluxsweep_fit_file = FS_dd.meta_val('FS Fit File')
+            previous_FS_dd = all_datadicts_from_hdf5(previous_fluxsweep_fit_file)['data']
+            fit_f0 = previous_FS_dd['fit_freq']['values']
+            fit_current = previous_FS_dd['current']['values']
+        except:
+            fit_f0 = FS_dd.meta_val('FS fit_f0')
+            fit_current = FS_dd.meta_val('FS fit_current')
+            
         detuning, currents, real, imag, mag, phase = get_fluxsweep_data_from_ddh5(filepath, trim_currents=trim_currents,
                                                                                trim_freqs=trim_freqs,
                                                                                use_radians=use_radians,
@@ -275,6 +280,17 @@ def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=Fals
                     fit_Qint=Qint)
 
         return currents, Qext, Qint, f0, cost
+
+def get_fluxsweep_fit_from_ddh5():
+
+    FS_dd = all_datadicts_from_hdf5(filepath)['data']
+
+    fit_current = np.unique(FS_dd[currents_name]['current'])
+    Qext = np.unique(FS_dd[freqs_name]['fit_Qext'])
+    Qint = FS_dd[phase_name]['fit_Qint']
+    fit_f0 = FS_dd[mag_name]['values']
+
+    return fit_current, Qext, Qint, fit_f0
 
 def combine_fluxsweeps(fit_filepaths):
 
