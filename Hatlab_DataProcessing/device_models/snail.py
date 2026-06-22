@@ -43,8 +43,8 @@ def get_snail_hamiltonian_params(Ib, Lj, alpha, L, C, dIdphi_r, I0, N=3, M=1, Lj
 
     hbar = 1.0545718e-34
     e = 1.60218e-19
-    phi0 = np.pi * hbar / e
-    Ic = phi0 / Lj
+    phi0 = np.pi * hbar / e # this is the unreduced flux quantum
+    Ic = phi0 / (2*np.pi) / Lj
     E_J = Ic * phi0 / (2 * np.pi)
 
     phi_r = (Ib - I0) / dIdphi_r
@@ -81,7 +81,6 @@ def fit_fluxsweep_to_snail_model(L, C, currents, f0s, Lj_guess, alpha_guess, dId
     dIdpi_r is flux coupling constant
     I0 is static flux offset
     '''
-
 
     from scipy.optimize import curve_fit
 

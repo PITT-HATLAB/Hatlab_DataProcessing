@@ -45,8 +45,8 @@ class AntiCrossingResult():
         else:
             ax = plot_ax
 
-        ax.plot(self.x_data, f0_data,  label="f0 data")
-        ax.plot(self.x_data, f1_data,  label="f1 data")
+        ax.plot(self.x_data, f0_data, 'o', label="f0 data")
+        ax.plot(self.x_data, f1_data, 'o',label="f1 data")
         ax.plot(self.x_data, f0_fit, label="f0 fit")
         ax.plot(self.x_data, f1_fit, label="f1 fit")
         ax.legend()
@@ -157,8 +157,8 @@ if __name__ == "__main__":
 
     # add noise and disable some data
     data = freqs + (np.random.rand(*freqs.shape)- 0.5)*0.02
-    data[0][:200] = [np.nan] * 200
-    data[1][-200:] = [np.nan] * 200
+    data[0][:250] = [np.nan] * 250
+    data[1][-250:] = [np.nan] * 250
     plt.figure()
     plt.plot(biasList, data[0, :])
     plt.plot(biasList, data[1, :])
@@ -170,6 +170,7 @@ if __name__ == "__main__":
     print(result.params)
     result.plot()
     result.print()
+
 
 
 

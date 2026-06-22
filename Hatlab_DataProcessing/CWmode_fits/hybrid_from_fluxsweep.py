@@ -23,18 +23,55 @@ def dressed_r_omega(omega_q, omega_r, g):
 
     return omega_r_tilde
 
+def get_fluxquantum_from_FS(currents, f0, plot=False):
 
-def g_delta_fit(currents_s, currents_r, f0_s, f0_r, plot=False, printout=False):
+    def offset_sine(x, A, k, x0, y0):
+        return A * np.cos((x - x0) * k) + y0
+
+    Aguess = (np.max(f0) - np.min(f0)) / 2
+    kGuess = 2 * np.pi / (np.max(currents) - np.min(currents))
+    x0Guess = np.mean(currents)
+    y0Guess = np.mean(f0)
+    p0 = (Aguess, kGuess, x0Guess, y0Guess)
+    bounds = ((Aguess / 1.1, kGuess / 3, np.min(currents), y0Guess / 1.1),
+              (Aguess * 1.1, kGuess * 3, np.max(currents), y0Guess * 1.1))
+    popt, pcov = curve_fit(offset_sine, currents, f0, p0=p0, bounds=bounds,maxfev=1e4, ftol=2.3e-16, xtol=2.3e-16)
+    dphi_dIb = popt[1]
+    zeroflux_current = popt[2]
+
+    phi_r = (currents - zeroflux_current) * dphi_dIb
+
+    if plot:
+
+        plt.plot(currents, f0)
+        plt.plot(currents, offset_sine(currents, *p0))
+        plt.plot(currents, offset_sine(currents, *popt))
+
+    return phi_r, dphi_dIb, zeroflux_current
+
+def get_fluxquantum_from_FS_manual(currents, f0, zero_flux_current, half_flux_current, plot=False):
+
+    dphi_dIb = np.pi/(half_flux_current-zero_flux_current)
+    phi_r = (currents - zero_flux_current) * dphi_dIb
+
+    return phi_r, dphi_dIb, zero_flux_current
+
+def g_delta_fit(phi_r_s, phi_r_r, f0_s, f0_r, plot=False, printout=False):
     '''
     This is a fit for g/Delta, given flux sweep data for two modes. The _s means snail - i.e., the object with
     the superconducting loop. The _r means resonator - i.e., the thing with no flux modulation of the bare mode.
 
+    It requires that the two fluxsweeps are defined over some overlapping range of flux phi_r - but the support
+    points don't need to be the same.
+
+    Use get_fluxquantum_from_FS(), if the flux sweeps don't have the same flux offset or flux coupling
+    constant.
     '''
 
-    currents = overlapping_support_points(currents_s, currents_r)
+    phi_r = overlapping_support_points(phi_r_s, phi_r_r)
 
-    f0_r_trimmed = np.interp(currents, currents_r, f0_r)
-    f0_s_trimmed = np.interp(currents, currents_s, f0_s)
+    f0_s_trimmed = np.interp(phi_r, phi_r_s, f0_s)
+    f0_r_trimmed = np.interp(phi_r, phi_r_r, f0_r)
 
     f0_r_bare_guess = np.mean(f0_r_trimmed)
 
@@ -60,7 +97,9 @@ def g_delta_fit(currents_s, currents_r, f0_s, f0_r, plot=False, printout=False):
         plt.legend()
         plt.show()
 
-    return popt, pcov
+    g_delta = (popt[1]/(2*np.pi) / np.abs(f0_s_trimmed - f0_r_trimmed) )
+
+    return phi_r, g_delta, popt, pcov
 
 if __name__ == '__main__':
     # FSfile = r"Y:\data\EmbeddedAmplifier\cooldown20250403\VNA\fluxsweep\2025-04-18T174406_40e5353d-FS_pwr=-55dB_mag3_in4_outC_VNA_VNA\data.ddh5"

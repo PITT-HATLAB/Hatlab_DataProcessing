@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 def get_fluxsweep_data_from_ddh5(filepath, trim_currents=(0,0), trim_freqs=(0,0),
                                  currents_name='bias_current', freqs_name='vna_frequency', phase_name='vna_phase',
-                                 mag_name='vna_power',use_radians=True):
+                                 mag_name='vna_power',use_radians=True, unwrap_phase=False):
     '''
     trim is how many points *from the boundary* to delete
     '''
@@ -19,11 +19,18 @@ def get_fluxsweep_data_from_ddh5(filepath, trim_currents=(0,0), trim_freqs=(0,0)
     phase = FS_dd[phase_name]['values']
     mag = FS_dd[mag_name]['values']
 
-    phase = phase.reshape((currents.shape[0], phase.shape[0] // currents.shape[0]))
-    mag = mag.reshape((currents.shape[0], mag.shape[0] // currents.shape[0]))
+
+    try:
+        phase = phase.reshape((currents.size, phase.size // currents.size))
+        mag = mag.reshape((currents.size, mag.size // currents.size))
+    except:
+        pass
 
     if use_radians == False:
         phase *= np.pi/180
+
+    if unwrap_phase:
+        phase = np.unwrap(phase, axis=1)
 
     lin = 10 ** (mag / 20.0)
 
@@ -85,13 +92,17 @@ def remove_fluxsweep_background(currents, real, imag, mag, phase):
 
     return realc, imagc, magc, phasec
 
-def fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=3):
+def fit_fluxsweep(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=3, frequency_offset=None):
 
     f0 = currents*0
     Qint = currents * 0
     Qext = currents * 0
     cost = currents*0
 
+    if frequency_offset is not None:
+        pass
+    else:
+        frequency_offset = currents * 0
 
     for i in tqdm(range(0, len(currents))):
 
@@ -100,7 +111,7 @@ def fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=3):
         mag_i = mag[i, :]
         phase_i = phase[i, :]
 
-        popt, cost_i = fit(freqs, real_i, imag_i, mag_i, phase_i, plot=False, n=n)
+        popt, cost_i = fit(freqs + frequency_offset[i], real_i, imag_i, mag_i, phase_i, plot=False, f0Guess=f0Guess, QintGuess=QGuess, QextGuess=QGuess, n=n)
 
         Qext[i] = popt[0]
         Qint[i] = popt[1]
@@ -109,7 +120,7 @@ def fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=3):
 
     return Qext, Qint, f0, cost
 
-def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=3):
+def fit_fluxsweep_in_series(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=3, frequency_offset=None):
 
     '''
     rather than running Qfit for each point individually, this fitter works from left to right, using the previous fit
@@ -127,6 +138,11 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
     CGuess = None
     DGuess = None
 
+    if frequency_offset is not None:
+        pass
+    else:
+        frequency_offset = currents * 0
+
     for i in tqdm(range(0,len(currents))):
 
         f_interp = np.linspace(f0Guess - f0Guess/QGuess * 3, f0Guess + f0Guess/QGuess * 3, 1000)
@@ -136,7 +152,7 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
         mag_interp = np.interp(f_interp, freqs, mag[i, :])
         phase_interp = np.interp(f_interp, freqs, phase[i, :])
 
-        popt, cost = fit(f_interp, real_interp, imag_interp, mag_interp, phase_interp, f0Guess=f0Guess, AGuess=AGuess, BGuess=BGuess,
+        popt, cost = fit(f_interp + frequency_offset[i], real_interp, imag_interp, mag_interp, phase_interp, f0Guess=f0Guess, AGuess=AGuess, BGuess=BGuess,
                              CGuess=CGuess, DGuess=DGuess, QintGuess=QintGuess, QextGuess=QextGuess, n=n, plot=False)
 
         Qext[i] = popt[0]
@@ -157,50 +173,108 @@ def fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGu
 def fit_fluxsweep_from_ddh5(filepath, save_filepath=None, remove_background=False, trim_currents=(0, 0),
                             trim_freqs=(0, 0), plot=False, n=3,use_radians=True, f0Guess=None, QGuess=None,
                             currents_name='bias_current', freqs_name='vna_frequency', phase_name='vna_phase',
-                            mag_name='vna_power',):
+                            mag_name='vna_power', fit_current_name=None, is_adaptive=False, fit_in_series=False):
 
-    freqs, currents, real, imag, mag, phase = get_fluxsweep_data_from_ddh5(filepath, trim_currents=trim_currents, trim_freqs=trim_freqs, use_radians=use_radians, currents_name=currents_name, freqs_name=freqs_name, phase_name=phase_name, mag_name=mag_name)
+    if is_adaptive:
+        '''
+        this means that the fluxsweep was generated from another fluxsweep fit result, usually for zooming in on modes
+        that have a tunable range many orders of magnitude larger than the linewidth
+        '''
+        FS_dd = all_datadicts_from_hdf5(filepath)['data']
+        previous_fluxsweep_fit_file = FS_dd.meta_val('FS Fit File')
+        previous_FS_dd = all_datadicts_from_hdf5(previous_fluxsweep_fit_file)['data']
+        fit_f0 = previous_FS_dd['fit_freq']['values']
+        fit_current = previous_FS_dd['current']['values']
+        detuning, currents, real, imag, mag, phase = get_fluxsweep_data_from_ddh5(filepath, trim_currents=trim_currents,
+                                                                               trim_freqs=trim_freqs,
+                                                                               use_radians=use_radians,
+                                                                               currents_name=currents_name,
+                                                                               freqs_name='detuning',
+                                                                               phase_name=phase_name, mag_name=mag_name)
 
-    if remove_background:
-        real, imag, mag, phase = remove_fluxsweep_background(currents, real, imag, mag, phase)
+        VNA_fcenters = np.interp(currents, fit_current, fit_f0)
 
-    if f0Guess != None and QGuess != None:
-        print('Running adaptive fitter...')
-        Qext, Qint, f0, cost = fit_fluxsweep_adaptive(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=n)
+        if remove_background:
+            real, imag, mag, phase = remove_fluxsweep_background(currents, real, imag, mag, phase)
+
+        if fit_in_series:
+            print('Running series fitter...')
+            Qext, Qint, f0, cost = fit_fluxsweep_in_series(detuning, currents, real, imag, mag, phase, f0Guess=f0Guess, QGuess=QGuess,
+                                                           n=n, frequency_offset=VNA_fcenters)
+        else:
+            print('Running parallel fitter...')
+            Qext, Qint, f0, cost = fit_fluxsweep(detuning, currents, real, imag, mag, phase, f0Guess=f0Guess, QGuess=QGuess, n=n, frequency_offset=VNA_fcenters)
+        print('...done!')
+
+        if plot:
+            plt.figure()
+            plt.pcolor(currents, detuning, phase.transpose())
+            plt.plot(currents, f0-VNA_fcenters, color=(0, 0, 0, 0.3), linewidth=10)
+            plt.show()
+
+        if save_filepath != None:
+            data = dd.DataDict(
+                current=dict(unit='A'),
+                fit_freq=dict(axes=['current'], unit='Hz'),
+                fit_Qext=dict(axes=['current'], unit='Hz'),
+                fit_Qint=dict(axes=['current'], unit='Hz'))
+
+            data.validate()
+
+            name = filepath.split('\\')[-2]
+
+            with dds.DDH5Writer(datadict=data, basedir=save_filepath, name=name) as writer:
+                writer.add_data(
+                    current=currents,
+                    fit_freq=f0,
+                    fit_Qext=Qext,
+                    fit_Qint=Qint)
+
+        return currents, Qext, Qint, f0, cost
+
     else:
-        print('Running parallel fitter...')
-        Qext, Qint, f0, cost = fit_fluxsweep(freqs, currents, real, imag, mag, phase, n=n)
-    print('...done!')
+        freqs, currents, real, imag, mag, phase = get_fluxsweep_data_from_ddh5(filepath, trim_currents=trim_currents, trim_freqs=trim_freqs, use_radians=use_radians, currents_name=currents_name, freqs_name=freqs_name, phase_name=phase_name, mag_name=mag_name)
 
-    if plot:
-        plt.figure()
-        plt.pcolor(currents, freqs, phase.transpose())
-        plt.plot(currents, f0, color=(0,0,0,0.3), linewidth=10)
-        # plt.plot(currents, f0 - f0 / Qext, 'k--')
-        # plt.plot(currents, f0 + f0 / Qext, 'k--')
-        plt.show()
+        if remove_background:
+            real, imag, mag, phase = remove_fluxsweep_background(currents, real, imag, mag, phase)
 
-    if save_filepath != None:
+        if fit_in_series:
+            print('Running series fitter...')
+            Qext, Qint, f0, cost = fit_fluxsweep_in_series(freqs, currents, real, imag, mag, phase, f0Guess, QGuess, n=n)
+        else:
+            print('Running parallel fitter...')
+            Qext, Qint, f0, cost = fit_fluxsweep(freqs, currents, real, imag, mag, phase, f0Guess=f0Guess, QGuess=QGuess, n=n)
+        print('...done!')
 
-        data = dd.DataDict(
-            current=dict(unit='A'),
-            fit_freq=dict(axes=['current'], unit='Hz'),
-            fit_Qext=dict(axes=['current'], unit='Hz'),
-            fit_Qint=dict(axes=['current'], unit='Hz'))
+        if plot:
+            plt.figure()
+            plt.pcolor(currents, freqs, phase.transpose())
+            plt.plot(currents, f0, color=(0,0,0,0.3), linewidth=10)
+            # plt.plot(currents, f0 - f0 / Qext, 'k--')
+            # plt.plot(currents, f0 + f0 / Qext, 'k--')
+            plt.show()
 
-        data.validate()
+        if save_filepath != None:
 
-        name = filepath.split('\\')[-2]
+            data = dd.DataDict(
+                current=dict(unit='A'),
+                fit_freq=dict(axes=['current'], unit='Hz'),
+                fit_Qext=dict(axes=['current'], unit='Hz'),
+                fit_Qint=dict(axes=['current'], unit='Hz'))
 
-        with dds.DDH5Writer(datadict=data, basedir=save_filepath, name=name) as writer:
+            data.validate()
 
-            writer.add_data(
-                current=currents,
-                fit_freq=f0,
-                fit_Qext=Qext,
-                fit_Qint=Qint)
+            name = filepath.split('\\')[-2]
 
-    return currents, Qext, Qint, f0, cost
+            with dds.DDH5Writer(datadict=data, basedir=save_filepath, name=name) as writer:
+
+                writer.add_data(
+                    current=currents,
+                    fit_freq=f0,
+                    fit_Qext=Qext,
+                    fit_Qint=Qint)
+
+        return currents, Qext, Qint, f0, cost
 
 def combine_fluxsweeps(fit_filepaths):
 

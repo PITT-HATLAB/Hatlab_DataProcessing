@@ -8,12 +8,6 @@ from scipy.optimize import curve_fit
 from plottr.data import datadict_storage as dds, datadict as dd
 from plottr.data.datadict_storage import all_datadicts_from_hdf5
 
-'''
-The point of this file is not to give mediocre fits, but to generate a good initial guess for a better fitter. 
-Fitting functions often don't converge without good initial guesses, but tuning the initial guesses can be tedious.
-Fortunately, they can be somewhat automated.
-'''
-
 FREQ_UNIT = {'GHz': 1e9,
              'MHz': 1e6,
              'KHz': 1e3,
@@ -22,7 +16,6 @@ FREQ_UNIT = {'GHz': 1e9,
 
 def rounder(value):
     return "{:.4e}".format(value)
-
 
 def reflectionFunc(freq, Qext, Qint, f0, A, B, C, D):
     '''
@@ -46,26 +39,26 @@ def reflectionFunc_re(freq, Qext, Qint, f0, magBack, A, B):
     return reflectionFunc(freq, Qext, Qint, f0, magBack,  A, B)[::2]
 
 
-def getData_from_datadict(filepath, plot_data=None):
+def getData_from_datadict(filepath, plot_data=None, freqs_name='frequency', phase_name='phase',
+                                 mag_name='power', use_radians=True):
     datadict = all_datadicts_from_hdf5(filepath)['data']
     powers_dB = datadict.extract('power')['power']['values']
-    freqs = datadict.extract('power')['frequency']['values'] * 2 * np.pi
-    phase_rad = datadict.extract('phase')['phase']['values'] * np.pi / 180
+    freqs = datadict.extract('power')[freqs_name]['values']
+    phase = datadict.extract('phase')[phase_name]['values']
+
+    if use_radians == False:
+        phase = phase * np.pi / 180
 
     lin = np.power(10, powers_dB / 20)
-    real = lin * np.cos(phase_rad)
-    imag = lin * np.sin(phase_rad)
-
-    print(np.size(phase_rad))
-    print(np.size(phase_rad))
+    real = lin * np.cos(phase)
+    imag = lin * np.sin(phase)
 
     if plot_data:
-        plt.figure('mag')
-        plt.plot(freqs, powers_dB)
-        plt.figure('phase')
-        plt.plot(freqs, phase_rad)
+        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(8,3))
+        axs[0].plot(freqs, powers_dB)
+        axs[1].plot(freqs, phase)
 
-    return (freqs, real, imag, powers_dB, phase_rad)
+    return (freqs, real, imag, powers_dB, phase)
 
 
 def getData(filename, method='hfss', freq_unit='GHz', plot_data=1):
@@ -132,9 +125,9 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
             AGuess=None, BGuess=None, CGuess=None, DGuess=None, plot=False, printout=False, n=3):
 
     if QextGuess == None:
-        QextGuess = np.mean(freq)/(10*(freq[1]-freq[0]))
+        QextGuess = np.mean(np.abs(freq))/(10*(freq[1]-freq[0]))
     if QintGuess == None:
-        QintGuess = np.mean(freq)/(10*(freq[1]-freq[0]))
+        QintGuess = np.mean(np.abs(freq))/(10*(freq[1]-freq[0]))
 
     if AGuess == None:
         AGuess = np.angle(real[0] + 1j * imag[0]) + np.pi
@@ -151,8 +144,8 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
         f0Guess = rough_guess(freq, S21, n=n)
 
     if bounds == None:
-        bounds = ([QextGuess / 10.0, QintGuess / 10.0, np.min(freq), -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 1e-6],
-                  [QextGuess * 10.0, QintGuess * 10.0, np.max(freq), 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 1e-6])
+        bounds = ([QextGuess / 10.0, QintGuess / 10.0, np.min(freq), -2 * np.pi, -1e-6, CGuess / 2.0, -CGuess * 0.1],
+                  [QextGuess * 10.0, QintGuess * 10.0, np.max(freq), 2 * np.pi, 1e-6, CGuess * 2.0, CGuess * 0.1])
 
     target_func = reflectionFunc
     data_to_fit = (real + 1j * imag).view(np.float64)
@@ -161,8 +154,8 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
         data_to_fit = real
     popt, pcov = curve_fit(target_func, freq, data_to_fit,
                            p0=(QextGuess, QintGuess, f0Guess, AGuess, BGuess, CGuess, DGuess),
-                           bounds=bounds,
-                           maxfev=1e4, ftol=2.3e-8, xtol=2.3e-8)
+                           # bounds=bounds,
+                           maxfev=10000, ftol=1e-5, xtol=1e-5)
 
     if printout:
         print(f'f (Hz): {rounder(popt[2] / 2 / np.pi)}', )
@@ -182,7 +175,7 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
         points_guess = plotRes(freq, real, imag, mag, phase, popt_guess)
         points_fit = plotRes(freq, real, imag, mag, phase, popt)
 
-        plt.figure()
+        plt.figure(figsize=(4,3))
         S21d = decimate_by_two(S21, n=n)
         metric = dx2(np.imag(S21d)) ** 2 + dx2(np.real(S21d)) ** 2
         plt.plot(metric)
@@ -199,10 +192,15 @@ def fit(freq, real, imag, mag, phase, real_only=0, bounds=None, f0Guess=None, Qe
 
     return popt, cost_fit
 
-def fit_mode_from_ddh5(filepath, plot=False, printout=False):
+def fit_mode_from_ddh5(filepath, plot=False, printout=False, use_radians=True, freqs_name='frequency',
+                       phase_name='phase', mag_name='power', n=3, f0Guess=None, QextGuess=None, QintGuess=None, AGuess=None, BGuess=None,
+                       CGuess=None, DGuess=None):
 
-    (freq, real, imag, mag, phase) = getData_from_datadict(filepath, plot_data=0)
-    popt, pcov = fit(freq, real, imag, mag, phase, plot=plot, printout=printout)
+    (freq, real, imag, mag, phase) = getData_from_datadict(filepath, plot_data=plot, freqs_name=freqs_name, phase_name=phase_name,
+                                 mag_name=mag_name, use_radians=use_radians)
+
+    popt, pcov = fit(freq, real, imag, mag, phase, plot=plot, printout=printout, n=n, f0Guess=f0Guess, QextGuess=QextGuess,
+                     QintGuess=QintGuess, AGuess=AGuess, BGuess=BGuess, CGuess=CGuess, DGuess=DGuess)
 
     return popt, pcov
 
@@ -212,7 +210,7 @@ def plotRes(freq, real, imag, mag, phase, popt):
     realRes = reflectionFunc(freq, *popt)[::2]
     imagRes = reflectionFunc(freq, *popt)[1::2]
     # realRes = reflectionFunc(freq, *popt)
-    plt.figure(figsize=(12, 5))
+    plt.figure(figsize=(8, 3))
     plt.subplot(1, 2, 1)
     plt.title('real')
     plt.plot(xdata, real, '.')
