@@ -226,6 +226,169 @@ class CavReflectionPhaseOnly(Fit):
 
 
 
+def cav_trans_func(freq, QL, f0):
+    """Unit-height two-port transmission peak; freq and f0 are in Hz.
+
+    QL is loaded Q, including internal loss and loading from BOTH ports.
+    A free complex amplitude absorbs measurement gain and port imbalance,
+    so this model does not independently determine Qint or either port Q.
+    """
+    return 1.0 / (1.0 - 2j * QL * (     np.asarray(freq) - f0) / f0)
+
+
+# Compatibility with the previous peak function name.
+cav_trans_peak_func = cav_trans_func
+
+
+class CavTransmissionResult:
+    """Complex S21 fit result, retaining .params, .plot() and .print()."""
+    def __init__(self, lmfit_result):
+        self.lmfit_result = lmfit_result
+        self.params = lmfit_result.params
+        self.f0 = self.params['f0'].value
+        self.freqData = lmfit_result.userkws['coordinates']
+        self.Qtot = self.params['QL'].value
+        self.QL = self.Qtot
+        self.eDelay = self.params['eDelay'].value
+
+    def plot(self, **figArgs):
+        options = dict(figsize=(15, 4))
+        options.update(figArgs)
+        fig, axes = plt.subplots(1, 3, **options)
+        data, fit = self.lmfit_result.data, self.lmfit_result.best_fit
+        for values, label, style in [(data, 'data', '.'), (fit, 'fit', '-')]:
+            axes[0].plot(self.freqData, 20*np.log10(np.maximum(np.abs(values),
+                         np.finfo(float).tiny)), style, label=label)
+            phase = np.unwrap(np.angle(values))
+            # Align whole-turn branches for display only; fit complex data.
+            if label == 'fit':
+                phase += TWOPI * np.round(np.median(
+                    (np.unwrap(np.angle(data)) - phase) / TWOPI))
+            axes[1].plot(self.freqData, phase, style, label=label)
+            axes[2].plot(values.real, values.imag, style, label=label)
+        axes[0].set(xlabel='Frequency (Hz)', ylabel='|S21| (dB)')
+        axes[1].set(xlabel='Frequency (Hz)', ylabel='Phase (rad)')
+        axes[2].set(xlabel='Re(S21)', ylabel='Im(S21)')
+        for ax in axes:
+            ax.legend()
+        fig.tight_layout()
+        plt.show()
+        return fig, axes
+
+    def print(self):
+        for name in ('f0', 'QL', 'magBack', 'phaseOff', 'eDelay'):
+            if name in self.params:
+                p = self.params[name]
+                uncertainty = 'unavailable' if p.stderr is None else f'{p.stderr:.6g}'
+                print(f'{name}: {p.value:.8g} +/- {uncertainty}')
+        print(f'Q_tot: {self.Qtot:.8g}')
+        print(f'T1 loaded (s): {self.Qtot / (TWOPI*self.f0):.6g}')
+        print(f'kappa/2Pi: {self.f0 / self.Qtot / 1e6:.6g} MHz')
+
+
+class CavTransmission:
+    """Fit a two-port cavity transmission PEAK using complex S21.
+
+    Frequencies must be in Hz. Fits QL, f0, magBack, phaseOff, eDelay.
+    QL^-1 = Qint^-1 + Qext1^-1 + Qext2^-1; only QL is identifiable
+    when the complex peak amplitude is free. magBack is the fitted peak
+    amplitude, not an off-resonance background.
+    The multiplicative factor is
+    magBack*exp(1j*(phaseOff + 2*pi*eDelay*(f-f0))).
+    eDelay is a signed phase slope in seconds. Set fit_delay=True to fit it.
+    The model assumes negligible additive/direct-path transmission.
+    """
+
+    def __init__(self, coordinates, data, conjugate=True, fit_delay=False):
+        freq = np.asarray(coordinates, dtype=float)
+        values = np.asarray(data, dtype=complex)
+        if freq.ndim != 1 or values.shape != freq.shape or len(freq) < 5:
+            raise ValueError('Frequency and complex S21 must be matching 1D arrays with >=5 points.')
+        if not np.all(np.isfinite(freq)) or not np.all(np.isfinite(values)):
+            raise ValueError('Frequency and S21 must be finite.')
+        order = np.argsort(freq)
+        self.coordinates, self.data = freq[order], values[order]
+        if np.any(np.diff(self.coordinates) <= 0) or np.any(self.coordinates <= 0):
+            raise ValueError('Frequency samples must be unique and positive, in Hz.')
+        if not np.any(np.abs(values) > 0):
+            raise ValueError('S21 is identically zero.')
+        self.conjugate = conjugate
+        self.fit_delay = fit_delay
+
+    def model(self, coordinates, QL, f0, magBack, phaseOff, eDelay=0):
+        response = cav_trans_func(coordinates, QL, f0)
+        if self.conjugate:
+            response = response.conjugate()
+        return response * magBack * np.exp(1j * (
+            phaseOff + TWOPI * eDelay * (coordinates - f0)))
+
+    def guess(self, coordinates, data):
+        freq, data = np.asarray(coordinates), np.asarray(data)
+        amp = np.abs(data)
+        phase = np.unwrap(np.angle(data))
+        idx = np.argmax(amp)
+        f0 = freq[idx]
+        amplitude, offset = amp[idx], phase[idx]
+        target = amplitude / np.sqrt(2)
+        inside = amp >= target
+        delay = 0.0
+        left = right = int(idx)
+        while left > 0 and inside[left-1]:
+            left -= 1
+        while right < len(freq)-1 and inside[right+1]:
+            right += 1
+        width = freq[right]-freq[left]
+        if width <= 0 or left == 0 or right == len(freq)-1:
+            width = np.sqrt((freq[-1]-freq[0]) * np.min(np.diff(freq)))
+        QL = f0 / width
+        if self.fit_delay:
+            resonance = cav_trans_func(freq, QL, f0)
+            if self.conjugate:
+                resonance = resonance.conjugate()
+            # Use the central, higher-SNR part of the peak for initialization.
+            good = amp > amplitude * 0.2
+            if np.count_nonzero(good) >= 5:
+                residual_phase = np.unwrap(np.angle(data[good] / resonance[good]))
+                slope, offset = np.polyfit(freq[good]-f0, residual_phase, 1)
+                delay = slope / TWOPI
+        parameters = lmfit.Parameters()
+        parameters.add('f0', value=f0, min=freq[0], max=freq[-1])
+        parameters.add('magBack', value=amplitude, min=np.finfo(float).eps)
+        parameters.add('phaseOff', value=offset)
+        parameters.add('eDelay', value=delay, vary=self.fit_delay)
+        parameters.add('QL', value=QL, min=1)
+        return parameters
+
+    def run(self, *args, params=None, dry=False, **kwargs):
+        """Fit with lmfit; params overrides may be Parameters, dict or numbers.
+
+        dry=True returns the guessed/overridden model without optimization.
+        Other keywords, e.g. method or weights, are passed to Model.fit.
+        """
+        parameters = self.guess(self.coordinates, self.data)
+        if params is not None:
+            for name, value in params.items():
+                if name not in parameters:
+                    raise ValueError(f'Unknown transmission parameter: {name}')
+                if isinstance(value, lmfit.Parameter):
+                    parameters[name] = value
+                elif isinstance(value, dict):
+                    parameters[name].set(**value)
+                else:
+                    parameters[name].set(value=value)
+        model = lmfit.Model(self.model, independent_vars=['coordinates'])
+        if dry:
+            result = ModelResult(model, parameters, data=self.data,
+                                 fcn_kws={'coordinates': self.coordinates})
+            result.best_fit = model.eval(params=parameters, coordinates=self.coordinates)
+        else:
+            result = model.fit(self.data, parameters, *args,
+                               coordinates=self.coordinates, **kwargs)
+        return CavTransmissionResult(result)
+
+
+
+
 if __name__ == '__main__':
     import h5py
     filepath = r'L:\Data\WISPE3D\Modes\20210809\CavModes\Cav'

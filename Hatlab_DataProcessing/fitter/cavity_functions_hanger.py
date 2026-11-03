@@ -121,8 +121,8 @@ class CavHanger(Fit):
         QintGuess = 1 / (1 / QtotGuess - 1 / QextGuess)
         deltaGuess = 0
 
-        Qext = lmfit.Parameter("Qext", value=QextGuess, min=QextGuess / 100, max=QextGuess * 100)
-        Qint = lmfit.Parameter("Qint", value=QintGuess, min=QintGuess / 100, max=QintGuess * 100)
+        Qext = lmfit.Parameter("Qext", value=QextGuess, min=max(0, QextGuess / 100), max=QextGuess * 100)
+        Qint = lmfit.Parameter("Qint", value=QintGuess, min=max(0, QintGuess / 100), max=QintGuess * 100)
         f0 = lmfit.Parameter("f0", value=f0Guess, min=freq[0], max=freq[-1])
         magBack = lmfit.Parameter("magBack", value=magBackGuess, min=magBackGuess / 1.1, max=magBackGuess * 1.1)
         phaseOff = lmfit.Parameter("phaseOff", value=phaseOffGuess, min=-TWOPI, max=TWOPI)
